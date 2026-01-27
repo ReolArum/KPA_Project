@@ -112,20 +112,21 @@ public class UIController : MonoBehaviour
     void RefreshTopBar(GameState state)
     {
         if (textDay) textDay.text = $"Day {state.day}";
-        if (textGold) textGold.text = $"Gold: {state.gold}";
+        if (textGold) textGold.text = $"Gold {state.gold}";
 
-        // 표시: "현재 블록/총 블록 + HH:MM"
         if (textTime)
         {
-            string t = GameManager.BlockToTimeLabel(state.currentBlock);
-            textTime.text = $"{state.currentBlock}/{GameManager.MaxBlocks}  ({t})";
+            string clock = GameManager.BlockToTimeLabel(state.currentBlock); // 09:00~22:00
+            int remainBlocks = Mathf.Clamp(GameManager.MaxBlocks - state.currentBlock, 0, GameManager.MaxBlocks);
+            string remain = GameManager.BlocksToHourMinute(remainBlocks);     // 00:00~13:00
+
+            textTime.text = $"시간 {clock} ({state.currentBlock}/{GameManager.MaxBlocks})  남은 {remain}";
         }
 
         if (textTodayTrain)
-        {
             textTodayTrain.text = $"힘 {state.todayStrengthTrain} / 체력 {state.todayStaminaTrain}";
-        }
     }
+
 
     void RefreshScheduleGrid(GameState state)
     {
