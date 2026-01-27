@@ -164,6 +164,7 @@ public class GameManager : MonoBehaviour
         return $"{hh:00}:{mm:00}";
     }
 
+// ===== Debug (Editor) =====
 public void DebugAdd1Block() => DebugAdvanceTime(1);
 public void DebugAdd4Blocks() => DebugAdvanceTime(4);
 
@@ -175,15 +176,16 @@ public void DebugAddGold10()
 
 public void DebugForceDaySummary()
 {
+    if (Phase == GamePhase.DaySummary) return;
+
     State.currentBlock = MaxBlocks;
-    // 누적은 건드리지 않음(테스트용)
-    // 바로 결산 상태로
-    // ShowDaySummary가 private이면 아래처럼 우회
-    PhaseToDaySummary();
+    ShowDaySummary(); // 기존 private 메서드 호출
 }
 
 public void DebugResetToday()
 {
+    if (Phase == GamePhase.DaySummary) return; // 원하면 DaySummary에서도 허용해도 됨
+
     State.currentBlock = 0;
     State.todayStrengthTrain = 0;
     State.todayStaminaTrain = 0;
@@ -192,27 +194,13 @@ public void DebugResetToday()
 
 void DebugAdvanceTime(int blocks)
 {
-    // 결산 중이면 무시
+    // 어디서든 허용(요청사항)
+    // 단, Title에서는 굳이 의미 없으니 막는 걸 추천
+    if (Phase == GamePhase.Title) return;
     if (Phase == GamePhase.DaySummary) return;
 
-    // Town에서도 시간 진행 테스트를 하고 싶으면 허용, 아니면 Place에서만 허용
-    // if (Phase != GamePhase.Place) return;
-
-    // 내부 코어 사용: 기존 AdvanceTime이 private이면 그냥 여기서 동일 로직 호출
-    // 가장 깔끔한 건 AdvanceTime을 private 유지하고 여기서 호출만 하는 것
-    AdvanceTime(blocks); // 같은 클래스 내부라 호출 가능
+    AdvanceTime(blocks);
 }
-
-void PhaseToDaySummary()
-{
-    // ShowDaySummary가 private이면 직접 호출 가능(같은 클래스)
-    // ShowDaySummary();
-    // 혹시 ShowDaySummary가 없다면:
-    Phase = GamePhase.DaySummary;
-    ui.ShowPhase(Phase);
-    ui.RefreshAll(State, Phase);
-}
-
 
 
 }
