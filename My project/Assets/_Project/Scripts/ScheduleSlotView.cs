@@ -48,4 +48,32 @@ public class ScheduleSlotView : MonoBehaviour
             };
         }
     }
+
+    public void SetProgressVisual(int currentBlock)
+    {
+        // 지난 시간은 흐리게
+        bool past = Index < currentBlock;
+        bool now = Index == currentBlock;
+
+        if (background != null)
+        {
+            var c = background.color;
+
+            // past: 알파 0.45, now: 약간 밝게, future: 원래
+            if (past) c.a = 0.45f;
+            else c.a = 1f;
+
+            // now 하이라이트(밝기 업)
+            if (now)
+            {
+                c.r = Mathf.Clamp01(c.r + 0.15f);
+                c.g = Mathf.Clamp01(c.g + 0.15f);
+                c.b = Mathf.Clamp01(c.b + 0.15f);
+            }
+
+            background.color = c;
+        }
+    }
+
+
 }

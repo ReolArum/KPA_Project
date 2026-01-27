@@ -135,8 +135,10 @@ public class UIController : MonoBehaviour
         for (int i = 0; i < GameManager.MaxBlocks; i++)
         {
             slotViews[i].SetType(state.schedule[i], colorStrength, colorStamina, colorRest);
+            slotViews[i].SetProgressVisual(state.currentBlock);
         }
     }
+
 
     void RefreshPlace(GameState state)
     {
