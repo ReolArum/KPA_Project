@@ -12,14 +12,22 @@ public class GameManager : MonoBehaviour
 
     void Awake()
     {
+
         if (ui == null) ui = FindFirstObjectByType<UIController>();
 
-        // 최초 스케줄 기본값(Rest)로 채우기
+        // 기본값
         for (int i = 0; i < MaxBlocks; i++)
             State.schedule[i] = SlotType.Rest;
 
+        // 저장 있으면 덮어쓰기 로드
+        SaveSystem.Load(State);
+
         SetPhase(GamePhase.Title);
         ui.RefreshAll(State, Phase);
+
+
+
+
     }
 
     // ====== Title ======
@@ -87,8 +95,12 @@ public class GameManager : MonoBehaviour
         if (Phase != GamePhase.DaySummary) return;
 
         State.ResetForNewDay();
+
+        SaveSystem.Save(State); // 다음날 상태 저장
+
         SetPhase(GamePhase.ScheduleSetting);
     }
+
 
     // ====== Core Time Advance ======
     void AdvanceTime(int costBlocks)
@@ -164,43 +176,48 @@ public class GameManager : MonoBehaviour
         return $"{hh:00}:{mm:00}";
     }
 
-// ===== Debug (Editor) =====
-public void DebugAdd1Block() => DebugAdvanceTime(1);
-public void DebugAdd4Blocks() => DebugAdvanceTime(4);
+    // ===== Debug (Editor) =====
+    public void DebugAdd1Block() => DebugAdvanceTime(1);
+    public void DebugAdd4Blocks() => DebugAdvanceTime(4);
 
-public void DebugAddGold10()
-{
-    State.gold += 10;
-    ui.RefreshAll(State, Phase);
-}
+    public void DebugAddGold10()
+    {
+        State.gold += 10;
+        ui.RefreshAll(State, Phase);
+    }
 
-public void DebugForceDaySummary()
-{
-    if (Phase == GamePhase.DaySummary) return;
+    public void DebugForceDaySummary()
+    {
+        if (Phase == GamePhase.DaySummary) return;
 
-    State.currentBlock = MaxBlocks;
-    ShowDaySummary(); // 기존 private 메서드 호출
-}
+        State.currentBlock = MaxBlocks;
+        ShowDaySummary(); // 기존 private 메서드 호출
+    }
 
-public void DebugResetToday()
-{
-    if (Phase == GamePhase.DaySummary) return; // 원하면 DaySummary에서도 허용해도 됨
+    public void DebugResetToday()
+    {
+        if (Phase == GamePhase.DaySummary) return; // 원하면 DaySummary에서도 허용해도 됨
 
-    State.currentBlock = 0;
-    State.todayStrengthTrain = 0;
-    State.todayStaminaTrain = 0;
-    ui.RefreshAll(State, Phase);
-}
+        State.currentBlock = 0;
+        State.todayStrengthTrain = 0;
+        State.todayStaminaTrain = 0;
+        ui.RefreshAll(State, Phase);
+    }
 
-void DebugAdvanceTime(int blocks)
-{
-    // 어디서든 허용(요청사항)
-    // 단, Title에서는 굳이 의미 없으니 막는 걸 추천
-    if (Phase == GamePhase.Title) return;
-    if (Phase == GamePhase.DaySummary) return;
+    void DebugAdvanceTime(int blocks)
+    {
+        // 어디서든 허용(요청사항)
+        // 단, Title에서는 굳이 의미 없으니 막는 걸 추천
+        if (Phase == GamePhase.Title) return;
+        if (Phase == GamePhase.DaySummary) return;
 
-    AdvanceTime(blocks);
-}
+        AdvanceTime(blocks);
+    }
+
+    public void DebugClearSave()
+    {
+        SaveSystem.Clear();
+    }
 
 
 }
