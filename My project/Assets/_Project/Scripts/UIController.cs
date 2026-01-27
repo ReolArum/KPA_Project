@@ -172,13 +172,13 @@ public class UIController : MonoBehaviour
     {
         if (textSummary == null) return;
 
-        string used = GameManager.BlocksToHourMinute(GameManager.MaxBlocks); // 13:00 고정
-        string now = GameManager.BlocksToHourMinute(state.currentBlock);    // 대체로 13:00
+        string used = GameManager.BlocksToHourMinute(GameManager.MaxBlocks); // 13:00
+        string today = GameManager.BlocksToHourMinute(state.currentBlock);   // 보통 13:00
+        string endClock = GameManager.BlockToTimeLabel(GameManager.MaxBlocks); // 22:00
 
         textSummary.text =
-            $"오늘 사용 시간: {now}/{used}\n" +
-            $"힘 훈련 블록: {state.todayStrengthTrain}\n" +
-            $"체력 훈련 블록: {state.todayStaminaTrain}\n" +
+            $"오늘 시간: {today} / {used}  ({endClock} 종료)\n" +
+            $"훈련 누적: 힘 {state.todayStrengthTrain}블록, 체력 {state.todayStaminaTrain}블록\n" +
             $"Gold: {state.gold}";
     }
 
