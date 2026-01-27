@@ -163,10 +163,27 @@ public class UIController : MonoBehaviour
                 _ => 4
             };
 
-            string extra = state.currentPlace == PlaceType.PartTime ? " (+Gold 10)" : "";
-            textPlaceInfo.text = $"행동 비용: {cost} blocks{extra}";
+            int remainBlocks = Mathf.Clamp(GameManager.MaxBlocks - state.currentBlock, 0, GameManager.MaxBlocks);
+
+            string costHM = GameManager.BlocksToHourMinute(cost);
+            string remainHM = GameManager.BlocksToHourMinute(remainBlocks);
+
+            bool willEndDay = state.currentBlock + cost >= GameManager.MaxBlocks; // 정확히 26이면 결산, 초과도 결산
+            bool overflow = state.currentBlock + cost > GameManager.MaxBlocks;
+
+            string extra = state.currentPlace == PlaceType.PartTime ? " (Gold +10)" : "";
+
+            string warn = "";
+            if (overflow) warn = "\n시간 부족: 실행 시 바로 결산됩니다.";
+            else if (willEndDay) warn = "\n이번 행동으로 22:00에 도달하여 결산됩니다.";
+
+            textPlaceInfo.text =
+                $"행동 비용: {cost} blocks ({costHM}){extra}\n" +
+                $"남은 시간: {remainBlocks} blocks ({remainHM})" +
+                warn;
         }
     }
+
 
     void RefreshDaySummary(GameState state)
     {
