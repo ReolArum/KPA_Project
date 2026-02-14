@@ -2,154 +2,35 @@ using UnityEngine;
 
 public class GameManager : MonoBehaviour
 {
-    public const int MaxBlocks = 26;
-
     [Header("Refs")]
     [SerializeField] private UIController ui;
 
     public GameState State { get; private set; } = new GameState();
     public GamePhase Phase { get; private set; } = GamePhase.Title;
 
+    // ===== 상수 =====
+    public const int DaySlotCount = GameState.DaySlotCount; // 4
+    public const int HoursPerSlot = 3;
+    // 낮: 08:00 시작, 슬롯 4개 × 3시간 = 12시간 → 20:00 종료
+    // 밤: 20:00~22:00 (밤 행동 1회)
+    public const int DayStartHour = 8;
+    public const int NightStartHour = 20;
+    public const int SleepHour = 22;
+
     void Awake()
     {
-
         if (ui == null) ui = FindFirstObjectByType<UIController>();
 
-        // 기본값
-        for (int i = 0; i < MaxBlocks; i++)
-            State.schedule[i] = SlotType.Rest;
+        for (int i = 0; i < DaySlotCount; i++)
+            State.daySchedule[i] = DaySlotType.Rest;
 
-        // 저장 있으면 덮어쓰기 로드
         SaveSystem.Load(State);
-
         SetPhase(GamePhase.Title);
-        ui.RefreshAll(State, Phase);
-
-
-
-
     }
 
-    // ====== Title ======
-    public void OnClickStart()
-    {
-        SetPhase(GamePhase.ScheduleSetting);
-    }
-
-    // ====== Schedule ======
-    public void OnClickConfirmSchedule()
-    {
-        SetPhase(GamePhase.Town);
-    }
-
-    // ====== Town ======
-    // Unity Button에서 enum 인자를 넘기기 번거로우면 아래 래퍼들을 쓰면 편합니다.
-    public void OnClickGoShop() => GoPlace(PlaceType.Shop);
-    public void OnClickGoPartTime() => GoPlace(PlaceType.PartTime);
-    public void OnClickGoExplore() => GoPlace(PlaceType.Explore);
-    public void OnClickGoArenaDesk() => GoPlace(PlaceType.ArenaDesk);
-
-    public void GoPlace(PlaceType place)
-    {
-        if (Phase != GamePhase.Town) return;
-
-        State.currentPlace = place;
-        SetPhase(GamePhase.Place);
-    }
-
-    // ====== Place ======
-    public void OnClickBackToTown()
-    {
-        if (Phase != GamePhase.Place) return;
-        SetPhase(GamePhase.Town);
-    }
-
-    public void OnClickDoAction()
-    {
-        if (Phase != GamePhase.Place) return;
-
-        int cost = GetActionCost(State.currentPlace);
-
-        // (선택) 알바는 골드 +10
-        if (State.currentPlace == PlaceType.PartTime)
-            State.gold += 10;
-
-        AdvanceTime(cost);
-    }
-
-    int GetActionCost(PlaceType place)
-    {
-        return place switch
-        {
-            PlaceType.Shop => 4,
-            PlaceType.PartTime => 4,
-            PlaceType.Explore => 6,
-            PlaceType.ArenaDesk => 2,
-            _ => 4
-        };
-    }
-
-    // ====== DaySummary ======
-    public void OnClickNextDay()
-    {
-        if (Phase != GamePhase.DaySummary) return;
-
-        State.ResetForNewDay();
-
-        SaveSystem.Save(State); // 다음날 상태 저장
-
-        SetPhase(GamePhase.ScheduleSetting);
-    }
-
-
-    // ====== Core Time Advance ======
-    void AdvanceTime(int costBlocks)
-    {
-        // 결산 상태면 입력 무시
-        if (Phase == GamePhase.DaySummary) return;
-
-        // 이미 끝났으면 결산
-        if (State.currentBlock >= MaxBlocks)
-        {
-            ShowDaySummary();
-            return;
-        }
-
-        // 초과 시도: 정책 통일 => 결산창으로
-        if (State.currentBlock + costBlocks > MaxBlocks)
-        {
-            State.currentBlock = MaxBlocks;
-            ShowDaySummary();
-            return;
-        }
-
-        // 자동훈련 누적 (현재블록 ~ 현재+cost-1)
-        for (int i = 0; i < costBlocks; i++)
-        {
-            int idx = State.currentBlock + i;
-            SlotType t = State.schedule[idx];
-
-            if (t == SlotType.Strength) State.todayStrengthTrain += 1;
-            else if (t == SlotType.Stamina) State.todayStaminaTrain += 1;
-        }
-
-        State.currentBlock += costBlocks;
-
-        // 22:00 도달 즉시 결산 (B안)
-        if (State.currentBlock == MaxBlocks)
-        {
-            ShowDaySummary();
-            return;
-        }
-
-        ui.RefreshAll(State, Phase);
-    }
-
-    void ShowDaySummary()
-    {
-        SetPhase(GamePhase.DaySummary);
-        ui.RefreshAll(State, Phase);
-    }
+    // ====================================================
+    //  Phase Transitions
+    // ====================================================
 
     void SetPhase(GamePhase next)
     {
@@ -158,27 +39,194 @@ public class GameManager : MonoBehaviour
         ui.RefreshAll(State, Phase);
     }
 
-    // ====== Time Util ======
-    public static string BlockToTimeLabel(int block)
+    // ===== Title =====
+    public void OnClickStart()
     {
-        // block 0 => 09:00, block 1 => 09:30 ... block 25 => 21:30, block 26 => 22:00(표시용)
-        int totalMinutes = 9 * 60 + block * 30;
-        int hh = totalMinutes / 60;
-        int mm = totalMinutes % 60;
-        return $"{hh:00}:{mm:00}";
+        SetPhase(GamePhase.ScheduleSetting);
     }
 
-    public static string BlocksToHourMinute(int blocks)
+    // ===== Schedule Setting → Day Progress =====
+    public void OnClickConfirmSchedule()
     {
-        int totalMinutes = blocks * 30;
-        int hh = totalMinutes / 60;
-        int mm = totalMinutes % 60;
-        return $"{hh:00}:{mm:00}";
+        State.currentDaySlot = 0;
+        SetPhase(GamePhase.DayProgress);
     }
 
-    // ===== Debug (Editor) =====
-    public void DebugAdd1Block() => DebugAdvanceTime(1);
-    public void DebugAdd4Blocks() => DebugAdvanceTime(4);
+    // ===== Day Progress: 슬롯 하나씩 실행 =====
+    public void OnClickExecuteNextSlot()
+    {
+        if (Phase != GamePhase.DayProgress) return;
+        if (State.currentDaySlot >= DaySlotCount)
+        {
+            // 낮 종료 → 밤으로
+            TransitionToNight();
+            return;
+        }
+
+        DaySlotType action = State.daySchedule[State.currentDaySlot];
+        ExecuteDaySlot(action);
+
+        State.currentDaySlot++;
+
+        if (State.currentDaySlot >= DaySlotCount)
+        {
+            // 낮 모든 슬롯 소진 → 밤으로
+            TransitionToNight();
+        }
+        else
+        {
+            ui.RefreshAll(State, Phase);
+        }
+    }
+
+    void ExecuteDaySlot(DaySlotType slot)
+    {
+        switch (slot)
+        {
+            case DaySlotType.Training:
+                // TODO: 훈련 세부 스탯 선택 UI 연동 (2단계)
+                // 지금은 힘 +1 기본
+                State.statStrength += 1;
+                State.todayTrainingCount++;
+                State.fatigue += 2;
+                State.stress += 1;
+                break;
+
+            case DaySlotType.PartTime:
+                State.gold += 10;
+                State.todayGoldEarned += 10;
+                State.fatigue += 1;
+                break;
+
+            case DaySlotType.Shop:
+                // TODO: 상점 UI (후순위)
+                break;
+
+            case DaySlotType.Investigation:
+                // TODO: 조사 콘텐츠 (후순위)
+                State.stress += 2;
+                break;
+
+            case DaySlotType.Relationship:
+                // TODO: 호감도 이벤트 (후순위)
+                State.stress = Mathf.Max(0, State.stress - 1);
+                break;
+
+            case DaySlotType.Rest:
+                State.fatigue = Mathf.Max(0, State.fatigue - 3);
+                State.stress = Mathf.Max(0, State.stress - 2);
+                break;
+        }
+    }
+
+    // ===== Night =====
+    void TransitionToNight()
+    {
+        State.nightCompleted = false;
+        SetPhase(GamePhase.NightChoice);
+    }
+
+    public void OnClickNightChoice(int choiceIndex)
+    {
+        if (Phase != GamePhase.NightChoice) return;
+
+        NightActionType choice = (NightActionType)choiceIndex;
+
+        // 아레나 체크
+        if (choice == NightActionType.Arena && !State.IsArenaOpen)
+        {
+            // 아레나가 열린 날이 아님 → 무시 또는 경고
+            ui.ShowArenaClosedWarning();
+            return;
+        }
+
+        // 스트레스 제한 체크
+        if (choice != NightActionType.Rest && State.stress >= 80)
+        {
+            // 스트레스 과다 → 휴식 강제
+            ui.ShowStressWarning();
+            return;
+        }
+
+        State.nightChoice = choice;
+        SetPhase(GamePhase.NightAction);
+        ExecuteNightAction(choice);
+    }
+
+    void ExecuteNightAction(NightActionType action)
+    {
+        switch (action)
+        {
+            case NightActionType.Exploration:
+                // TODO: 탐사 콘텐츠 (후순위, 지금은 더미)
+                State.stress += 5;
+                State.fatigue += 3;
+                // 더미 보상
+                State.gold += 5;
+                break;
+
+            case NightActionType.Arena:
+                // TODO: 전투 시스템 연동 (후순위, 지금은 더미)
+                State.stress += 3;
+                State.fatigue += 5;
+                State.gold += 20; // 더미 승리 보상
+                break;
+
+            case NightActionType.Rest:
+                State.stress = Mathf.Max(0, State.stress - 5);
+                State.fatigue = Mathf.Max(0, State.fatigue - 5);
+                break;
+        }
+
+        State.nightCompleted = true;
+
+        // 밤 행동 완료 → 결산
+        SetPhase(GamePhase.DaySummary);
+    }
+
+    // ===== Day Summary → Next Day =====
+    public void OnClickNextDay()
+    {
+        if (Phase != GamePhase.DaySummary) return;
+
+        State.ResetForNewDay();
+        SaveSystem.Save(State);
+        SetPhase(GamePhase.ScheduleSetting);
+    }
+
+    // ====================================================
+    //  Time Utility
+    // ====================================================
+
+    /// <summary>슬롯 인덱스 → 시각 문자열 (08:00, 11:00, 14:00, 17:00)</summary>
+    public static string DaySlotToTimeLabel(int slotIndex)
+    {
+        int hour = DayStartHour + slotIndex * HoursPerSlot;
+        return $"{hour:00}:00";
+    }
+
+    /// <summary>슬롯 인덱스 → 종료 시각</summary>
+    public static string DaySlotToEndTimeLabel(int slotIndex)
+    {
+        int hour = DayStartHour + (slotIndex + 1) * HoursPerSlot;
+        return $"{hour:00}:00";
+    }
+
+    /// <summary>현재 시각 문자열</summary>
+    public static string GetCurrentTimeLabel(GameState state, GamePhase phase)
+    {
+        if (phase == GamePhase.NightChoice || phase == GamePhase.NightAction)
+            return $"{NightStartHour:00}:00";
+        if (phase == GamePhase.DaySummary)
+            return $"{SleepHour:00}:00";
+
+        int hour = DayStartHour + state.currentDaySlot * HoursPerSlot;
+        return $"{hour:00}:00";
+    }
+
+    // ====================================================
+    //  Debug
+    // ====================================================
 
     public void DebugAddGold10()
     {
@@ -186,38 +234,21 @@ public class GameManager : MonoBehaviour
         ui.RefreshAll(State, Phase);
     }
 
-    public void DebugForceDaySummary()
+    public void DebugReduceStress()
     {
-        if (Phase == GamePhase.DaySummary) return;
-
-        State.currentBlock = MaxBlocks;
-        ShowDaySummary(); // 기존 private 메서드 호출
-    }
-
-    public void DebugResetToday()
-    {
-        if (Phase == GamePhase.DaySummary) return; // 원하면 DaySummary에서도 허용해도 됨
-
-        State.currentBlock = 0;
-        State.todayStrengthTrain = 0;
-        State.todayStaminaTrain = 0;
+        State.stress = Mathf.Max(0, State.stress - 20);
         ui.RefreshAll(State, Phase);
     }
 
-    void DebugAdvanceTime(int blocks)
+    public void DebugForceDaySummary()
     {
-        // 어디서든 허용(요청사항)
-        // 단, Title에서는 굳이 의미 없으니 막는 걸 추천
-        if (Phase == GamePhase.Title) return;
-        if (Phase == GamePhase.DaySummary) return;
-
-        AdvanceTime(blocks);
+        State.currentDaySlot = DaySlotCount;
+        State.nightCompleted = true;
+        SetPhase(GamePhase.DaySummary);
     }
 
     public void DebugClearSave()
     {
         SaveSystem.Clear();
     }
-
-
 }

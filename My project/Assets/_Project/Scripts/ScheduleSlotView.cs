@@ -11,7 +11,6 @@ public class ScheduleSlotView : MonoBehaviour
     [SerializeField] private Button button;
 
     public int Index { get; private set; }
-
     UIController owner;
 
     public void Init(UIController owner, int index)
@@ -29,51 +28,37 @@ public class ScheduleSlotView : MonoBehaviour
         if (timeLabelText != null) timeLabelText.text = label;
     }
 
-    public void SetType(SlotType t, Color strength, Color stamina, Color rest)
+    public void SetType(DaySlotType t,
+        Color training, Color partTime, Color shop,
+        Color investigation, Color relationship, Color rest)
     {
-        if (typeText != null) typeText.text = t switch
-        {
-            SlotType.Strength => "Str",
-            SlotType.Stamina => "Stam",
-            _ => "Rest"
-        };
+        if (typeText != null)
+            typeText.text = UIController.GetDaySlotName(t);
 
         if (background != null)
-        {
-            background.color = t switch
-            {
-                SlotType.Strength => strength,
-                SlotType.Stamina => stamina,
-                _ => rest
-            };
-        }
+            background.color = UIController.GetSlotColor(t,
+                training, partTime, shop, investigation, relationship, rest);
     }
 
-    public void SetProgressVisual(int currentBlock)
+    public void SetProgressVisual(int currentSlot)
     {
-        // 지난 시간은 흐리게
-        bool past = Index < currentBlock;
-        bool now = Index == currentBlock;
+        bool past = Index < currentSlot;
+        bool now = Index == currentSlot;
 
-        if (background != null)
+        if (background == null) return;
+
+        var c = background.color;
+
+        if (past) c.a = 0.4f;
+        else c.a = 1f;
+
+        if (now)
         {
-            var c = background.color;
-
-            // past: 알파 0.45, now: 약간 밝게, future: 원래
-            if (past) c.a = 0.45f;
-            else c.a = 1f;
-
-            // now 하이라이트(밝기 업)
-            if (now)
-            {
-                c.r = Mathf.Clamp01(c.r + 0.15f);
-                c.g = Mathf.Clamp01(c.g + 0.15f);
-                c.b = Mathf.Clamp01(c.b + 0.15f);
-            }
-
-            background.color = c;
+            c.r = Mathf.Clamp01(c.r + 0.15f);
+            c.g = Mathf.Clamp01(c.g + 0.15f);
+            c.b = Mathf.Clamp01(c.b + 0.15f);
         }
+
+        background.color = c;
     }
-
-
 }

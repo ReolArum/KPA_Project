@@ -5,44 +5,91 @@ using UnityEngine.UI;
 
 public class UIController : MonoBehaviour
 {
+    // ====================================================
+    //  Panels
+    // ====================================================
     [Header("Panels")]
     [SerializeField] private GameObject panelTitle;
-    [SerializeField] private GameObject panelSchedule;
-    [SerializeField] private GameObject panelTown;
-    [SerializeField] private GameObject panelPlace;
-    [SerializeField] private GameObject panelDaySummary;
+    [SerializeField] private GameObject panelSchedule;      // 낮 스케줄 설정
+    [SerializeField] private GameObject panelDayProgress;    // 낮 진행
+    [SerializeField] private GameObject panelNightChoice;    // 밤 선택
+    [SerializeField] private GameObject panelNightAction;    // 밤 행동 결과
+    [SerializeField] private GameObject panelDaySummary;     // 결산
 
-    [Header("TopBar (Always On)")]
+    // ====================================================
+    //  Top Bar
+    // ====================================================
+    [Header("TopBar")]
     [SerializeField] private TMP_Text textDay;
     [SerializeField] private TMP_Text textTime;
     [SerializeField] private TMP_Text textGold;
-    [SerializeField] private TMP_Text textTodayTrain; // optional
+    [SerializeField] private TMP_Text textStress;
+    [SerializeField] private TMP_Text textFatigue;
 
+    // ====================================================
+    //  Schedule Grid (낮 4슬롯)
+    // ====================================================
     [Header("Schedule Grid")]
     [SerializeField] private Transform scheduleGridRoot;
     [SerializeField] private ScheduleSlotView slotPrefab;
 
-    [Header("Place Panel")]
-    [SerializeField] private TMP_Text textPlaceName;
-    [SerializeField] private TMP_Text textPlaceInfo; // optional (준비중/비용 등)
+    // ====================================================
+    //  Day Progress
+    // ====================================================
+    [Header("Day Progress")]
+    [SerializeField] private TMP_Text textCurrentSlotInfo;
+    [SerializeField] private Button btnExecuteSlot; // "실행" 또는 "다음 슬롯"
 
+    // ====================================================
+    //  Night Choice
+    // ====================================================
+    [Header("Night Choice")]
+    [SerializeField] private Button btnNightExplore;
+    [SerializeField] private Button btnNightArena;
+    [SerializeField] private Button btnNightRest;
+    [SerializeField] private TMP_Text textArenaStatus;  // "아레나 오픈" / "아레나 휴무"
+    [SerializeField] private TMP_Text textNightWarning;  // 스트레스 경고 등
+
+    // ====================================================
+    //  Night Action Result
+    // ====================================================
+    [Header("Night Action")]
+    [SerializeField] private TMP_Text textNightResult;
+
+    // ====================================================
+    //  Day Summary
+    // ====================================================
     [Header("Day Summary")]
     [SerializeField] private TMP_Text textSummary;
 
-    [Header("Slot Dropdown Popup")]
-    [SerializeField] private GameObject popupSlotDropdown;
-    [SerializeField] private Button btnStrength;
-    [SerializeField] private Button btnStamina;
-    [SerializeField] private Button btnRest;
-    [SerializeField] private Button btnClosePopup; // optional: 배경 버튼으로 닫기
+    // ====================================================
+    //  Slot Selection Popup
+    // ====================================================
+    [Header("Slot Selection Popup")]
+    [SerializeField] private GameObject popupSlotSelect;
+    [SerializeField] private Button btnSlotTraining;
+    [SerializeField] private Button btnSlotPartTime;
+    [SerializeField] private Button btnSlotShop;
+    [SerializeField] private Button btnSlotInvestigation;
+    [SerializeField] private Button btnSlotRelationship;
+    [SerializeField] private Button btnSlotRest;
+    [SerializeField] private Button btnSlotClosePopup;
 
-    [Header("Colors")]
-    [SerializeField] private Color colorStrength = new Color(0.85f, 0.35f, 0.35f);
-    [SerializeField] private Color colorStamina = new Color(0.35f, 0.55f, 0.90f);
+    // ====================================================
+    //  Colors
+    // ====================================================
+    [Header("Slot Colors")]
+    [SerializeField] private Color colorTraining = new Color(0.85f, 0.35f, 0.35f);
+    [SerializeField] private Color colorPartTime = new Color(0.35f, 0.75f, 0.35f);
+    [SerializeField] private Color colorShop = new Color(0.90f, 0.80f, 0.30f);
+    [SerializeField] private Color colorInvestigation = new Color(0.60f, 0.40f, 0.80f);
+    [SerializeField] private Color colorRelationship = new Color(0.90f, 0.55f, 0.70f);
     [SerializeField] private Color colorRest = new Color(0.55f, 0.55f, 0.55f);
 
+    // ====================================================
+    //  Internal
+    // ====================================================
     readonly List<ScheduleSlotView> slotViews = new();
-
     GameManager gm;
     int popupTargetIndex = -1;
 
@@ -50,161 +97,212 @@ public class UIController : MonoBehaviour
     {
         gm = FindFirstObjectByType<GameManager>();
 
-        BuildScheduleGridIfNeeded();
-
-        // 팝업 버튼 연결
-        if (btnStrength) btnStrength.onClick.AddListener(() => SelectSlotType(SlotType.Strength));
-        if (btnStamina) btnStamina.onClick.AddListener(() => SelectSlotType(SlotType.Stamina));
-        if (btnRest) btnRest.onClick.AddListener(() => SelectSlotType(SlotType.Rest));
-        if (btnClosePopup) btnClosePopup.onClick.AddListener(CloseSlotPopup);
+        BuildScheduleGrid();
+        SetupSlotPopupButtons();
+        SetupNightButtons();
 
         CloseSlotPopup();
     }
 
-    void BuildScheduleGridIfNeeded()
+    // ====================================================
+    //  Build / Setup
+    // ====================================================
+
+    void BuildScheduleGrid()
     {
         if (scheduleGridRoot == null || slotPrefab == null) return;
+        if (slotViews.Count == GameState.DaySlotCount) return;
 
-        // 이미 만들어져 있으면 재생성 안함
-        if (slotViews.Count == GameManager.MaxBlocks) return;
-
-        // 기존 자식 삭제(에디터에서 미리 넣었다면)
         for (int i = scheduleGridRoot.childCount - 1; i >= 0; i--)
             Destroy(scheduleGridRoot.GetChild(i).gameObject);
 
         slotViews.Clear();
 
-        for (int i = 0; i < GameManager.MaxBlocks; i++)
+        for (int i = 0; i < GameState.DaySlotCount; i++)
         {
             var v = Instantiate(slotPrefab, scheduleGridRoot);
             v.Init(this, i);
-            v.SetTimeLabel(GameManager.BlockToTimeLabel(i));
+            v.SetTimeLabel($"{GameManager.DaySlotToTimeLabel(i)}~{GameManager.DaySlotToEndTimeLabel(i)}");
             slotViews.Add(v);
         }
     }
 
-    // ===== Panel Switching =====
+    void SetupSlotPopupButtons()
+    {
+        if (btnSlotTraining) btnSlotTraining.onClick.AddListener(() => SelectSlotType(DaySlotType.Training));
+        if (btnSlotPartTime) btnSlotPartTime.onClick.AddListener(() => SelectSlotType(DaySlotType.PartTime));
+        if (btnSlotShop) btnSlotShop.onClick.AddListener(() => SelectSlotType(DaySlotType.Shop));
+        if (btnSlotInvestigation) btnSlotInvestigation.onClick.AddListener(() => SelectSlotType(DaySlotType.Investigation));
+        if (btnSlotRelationship) btnSlotRelationship.onClick.AddListener(() => SelectSlotType(DaySlotType.Relationship));
+        if (btnSlotRest) btnSlotRest.onClick.AddListener(() => SelectSlotType(DaySlotType.Rest));
+        if (btnSlotClosePopup) btnSlotClosePopup.onClick.AddListener(CloseSlotPopup);
+    }
+
+    void SetupNightButtons()
+    {
+        if (btnNightExplore) btnNightExplore.onClick.AddListener(() => gm.OnClickNightChoice((int)NightActionType.Exploration));
+        if (btnNightArena) btnNightArena.onClick.AddListener(() => gm.OnClickNightChoice((int)NightActionType.Arena));
+        if (btnNightRest) btnNightRest.onClick.AddListener(() => gm.OnClickNightChoice((int)NightActionType.Rest));
+    }
+
+    // ====================================================
+    //  Panel Switching
+    // ====================================================
+
     public void ShowPhase(GamePhase phase)
     {
         if (panelTitle) panelTitle.SetActive(phase == GamePhase.Title);
         if (panelSchedule) panelSchedule.SetActive(phase == GamePhase.ScheduleSetting);
-        if (panelTown) panelTown.SetActive(phase == GamePhase.Town);
-        if (panelPlace) panelPlace.SetActive(phase == GamePhase.Place);
+        if (panelDayProgress) panelDayProgress.SetActive(phase == GamePhase.DayProgress);
+        if (panelNightChoice) panelNightChoice.SetActive(phase == GamePhase.NightChoice);
+        if (panelNightAction) panelNightAction.SetActive(phase == GamePhase.NightAction);
         if (panelDaySummary) panelDaySummary.SetActive(phase == GamePhase.DaySummary);
 
-        // 결산 때는 팝업 닫아두기
-        if (phase == GamePhase.DaySummary) CloseSlotPopup();
+        if (phase != GamePhase.ScheduleSetting) CloseSlotPopup();
     }
 
-    // ===== Refresh =====
+    // ====================================================
+    //  Refresh
+    // ====================================================
+
     public void RefreshAll(GameState state, GamePhase phase)
     {
-        RefreshTopBar(state);
+        RefreshTopBar(state, phase);
         RefreshScheduleGrid(state);
 
-        if (phase == GamePhase.Place)
-            RefreshPlace(state);
-
+        if (phase == GamePhase.DayProgress)
+            RefreshDayProgress(state);
+        if (phase == GamePhase.NightChoice)
+            RefreshNightChoice(state);
+        if (phase == GamePhase.NightAction)
+            RefreshNightAction(state);
         if (phase == GamePhase.DaySummary)
             RefreshDaySummary(state);
     }
 
-    void RefreshTopBar(GameState state)
+    void RefreshTopBar(GameState state, GamePhase phase)
     {
         if (textDay) textDay.text = $"Day {state.day}";
-        if (textGold) textGold.text = $"Gold {state.gold}";
-
-        if (textTime)
-        {
-            string clock = GameManager.BlockToTimeLabel(state.currentBlock); // 09:00~22:00
-            int remainBlocks = Mathf.Clamp(GameManager.MaxBlocks - state.currentBlock, 0, GameManager.MaxBlocks);
-            string remain = GameManager.BlocksToHourMinute(remainBlocks);     // 00:00~13:00
-
-            textTime.text = $"시간 {clock} ({state.currentBlock}/{GameManager.MaxBlocks})  남은 {remain}";
-        }
-
-        if (textTodayTrain)
-            textTodayTrain.text = $"힘 {state.todayStrengthTrain} / 체력 {state.todayStaminaTrain}";
+        if (textGold) textGold.text = $"Gold: {state.gold}";
+        if (textTime) textTime.text = GameManager.GetCurrentTimeLabel(state, phase);
+        if (textStress) textStress.text = $"스트레스: {state.stress}";
+        if (textFatigue) textFatigue.text = $"피로: {state.fatigue}";
     }
-
 
     void RefreshScheduleGrid(GameState state)
     {
-        if (slotViews.Count != GameManager.MaxBlocks) return;
-
-        for (int i = 0; i < GameManager.MaxBlocks; i++)
+        for (int i = 0; i < slotViews.Count; i++)
         {
-            slotViews[i].SetType(state.schedule[i], colorStrength, colorStamina, colorRest);
-            slotViews[i].SetProgressVisual(state.currentBlock);
+            slotViews[i].SetType(state.daySchedule[i],
+                colorTraining, colorPartTime, colorShop,
+                colorInvestigation, colorRelationship, colorRest);
+            slotViews[i].SetProgressVisual(state.currentDaySlot);
         }
     }
 
-
-    void RefreshPlace(GameState state)
+    void RefreshDayProgress(GameState state)
     {
-        if (textPlaceName)
+        if (textCurrentSlotInfo == null) return;
+
+        if (state.currentDaySlot >= GameState.DaySlotCount)
         {
-            textPlaceName.text = state.currentPlace switch
-            {
-                PlaceType.Shop => "상점",
-                PlaceType.PartTime => "아르바이트",
-                PlaceType.Explore => "탐험",
-                PlaceType.ArenaDesk => "아레나 접수처",
-                _ => "장소"
-            };
+            textCurrentSlotInfo.text = "낮 일과 완료! 밤으로 전환됩니다.";
+            return;
         }
 
-        if (textPlaceInfo)
-        {
-            int cost = state.currentPlace switch
-            {
-                PlaceType.Shop => 4,
-                PlaceType.PartTime => 4,
-                PlaceType.Explore => 6,
-                PlaceType.ArenaDesk => 2,
-                _ => 4
-            };
+        string time = GameManager.DaySlotToTimeLabel(state.currentDaySlot);
+        string endTime = GameManager.DaySlotToEndTimeLabel(state.currentDaySlot);
+        DaySlotType action = state.daySchedule[state.currentDaySlot];
+        string actionName = GetDaySlotName(action);
 
-            int remainBlocks = Mathf.Clamp(GameManager.MaxBlocks - state.currentBlock, 0, GameManager.MaxBlocks);
-
-            string costHM = GameManager.BlocksToHourMinute(cost);
-            string remainHM = GameManager.BlocksToHourMinute(remainBlocks);
-
-            bool willEndDay = state.currentBlock + cost >= GameManager.MaxBlocks; // 정확히 26이면 결산, 초과도 결산
-            bool overflow = state.currentBlock + cost > GameManager.MaxBlocks;
-
-            string extra = state.currentPlace == PlaceType.PartTime ? " (Gold +10)" : "";
-
-            string warn = "";
-            if (overflow) warn = "\n시간 부족: 실행 시 바로 결산됩니다.";
-            else if (willEndDay) warn = "\n이번 행동으로 22:00에 도달하여 결산됩니다.";
-
-            textPlaceInfo.text =
-                $"행동 비용: {cost} blocks ({costHM}){extra}\n" +
-                $"남은 시간: {remainBlocks} blocks ({remainHM})" +
-                warn;
-        }
+        textCurrentSlotInfo.text =
+            $"[{time}~{endTime}] {actionName}\n" +
+            $"슬롯 {state.currentDaySlot + 1} / {GameState.DaySlotCount}";
     }
 
+    void RefreshNightChoice(GameState state)
+    {
+        if (textArenaStatus)
+        {
+            textArenaStatus.text = state.IsArenaOpen
+                ? "아레나: 오픈 (참가 가능)"
+                : $"아레나: 휴무 (다음 오픈: Day {NextArenaDay(state.day)})";
+        }
+
+        // 아레나 버튼 비활성화
+        if (btnNightArena) btnNightArena.interactable = state.IsArenaOpen;
+
+        // 스트레스 경고
+        if (textNightWarning)
+        {
+            if (state.stress >= 80)
+                textNightWarning.text = "스트레스가 너무 높습니다! 휴식만 가능합니다.";
+            else if (state.stress >= 60)
+                textNightWarning.text = "스트레스가 높습니다. 주의하세요.";
+            else
+                textNightWarning.text = "";
+        }
+
+        // 스트레스 80 이상이면 탐사/아레나 비활성화
+        bool locked = state.stress >= 80;
+        if (btnNightExplore) btnNightExplore.interactable = !locked;
+        if (btnNightArena) btnNightArena.interactable = state.IsArenaOpen && !locked;
+    }
+
+    void RefreshNightAction(GameState state)
+    {
+        if (textNightResult == null) return;
+
+        string actionName = state.nightChoice switch
+        {
+            NightActionType.Exploration => "탐사",
+            NightActionType.Arena => "아레나",
+            NightActionType.Rest => "휴식",
+            _ => "?"
+        };
+
+        textNightResult.text = $"밤 행동: {actionName} 완료!";
+    }
 
     void RefreshDaySummary(GameState state)
     {
         if (textSummary == null) return;
 
-        string used = GameManager.BlocksToHourMinute(GameManager.MaxBlocks); // 13:00
-        string today = GameManager.BlocksToHourMinute(state.currentBlock);   // 보통 13:00
-        string endClock = GameManager.BlockToTimeLabel(GameManager.MaxBlocks); // 22:00
-
         textSummary.text =
-            $"오늘 시간: {today} / {used}  ({endClock} 종료)\n" +
-            $"훈련 누적: 힘 {state.todayStrengthTrain}블록, 체력 {state.todayStaminaTrain}블록\n" +
-            $"Gold: {state.gold}";
+            $"===== Day {state.day} 결산 =====\n\n" +
+            $"훈련 횟수: {state.todayTrainingCount}\n" +
+            $"획득 골드: {state.todayGoldEarned}\n" +
+            $"총 골드: {state.gold}\n\n" +
+            $"스트레스: {state.stress}  |  피로: {state.fatigue}\n\n" +
+            $"[스탯]\n" +
+            $"  힘: {state.statStrength}\n" +
+            $"  민첩: {state.statAgility}\n" +
+            $"  재주: {state.statDexterity}\n" +
+            $"  지구력: {state.statEndurance}\n\n" +
+            (state.IsArenaOpen ? "오늘은 아레나가 열린 날이었습니다.\n" : "") +
+            $"내일 아레나: {(state.day + 1) % 3 == 0}";
     }
 
-    // ===== Schedule Slot Click -> Popup =====
+    // ====================================================
+    //  Warnings (GameManager에서 호출)
+    // ====================================================
+
+    public void ShowArenaClosedWarning()
+    {
+        if (textNightWarning) textNightWarning.text = "아레나는 오늘 열리지 않습니다!";
+    }
+
+    public void ShowStressWarning()
+    {
+        if (textNightWarning) textNightWarning.text = "스트레스가 너무 높아 휴식만 가능합니다!";
+    }
+
+    // ====================================================
+    //  Schedule Slot Click → Popup
+    // ====================================================
+
     public void OnClickScheduleSlot(int index)
     {
-        // 스케줄 설정 상태에서만 변경 가능하게 하고 싶으면 아래 조건 사용
         if (gm != null && gm.Phase != GamePhase.ScheduleSetting) return;
 
         popupTargetIndex = index;
@@ -216,21 +314,58 @@ public class UIController : MonoBehaviour
         if (popupSlotDropdown) popupSlotDropdown.SetActive(true);
     }
 
+    [Header("(Popup ref — same as popupSlotSelect)")]
+    [SerializeField] private GameObject popupSlotDropdown; // Inspector에서 popupSlotSelect와 같은 오브젝트 할당
+
     void CloseSlotPopup()
     {
         popupTargetIndex = -1;
         if (popupSlotDropdown) popupSlotDropdown.SetActive(false);
+        if (popupSlotSelect) popupSlotSelect.SetActive(false);
     }
 
-    void SelectSlotType(SlotType t)
+    void SelectSlotType(DaySlotType t)
     {
-        if (gm == null) return;
-        if (gm.Phase != GamePhase.ScheduleSetting) { CloseSlotPopup(); return; }
-        if (popupTargetIndex < 0 || popupTargetIndex >= GameManager.MaxBlocks) { CloseSlotPopup(); return; }
+        if (gm == null || gm.Phase != GamePhase.ScheduleSetting) { CloseSlotPopup(); return; }
+        if (popupTargetIndex < 0 || popupTargetIndex >= GameState.DaySlotCount) { CloseSlotPopup(); return; }
 
-        gm.State.schedule[popupTargetIndex] = t;
-
+        gm.State.daySchedule[popupTargetIndex] = t;
         RefreshScheduleGrid(gm.State);
         CloseSlotPopup();
+    }
+
+    // ====================================================
+    //  Utility
+    // ====================================================
+
+    public static string GetDaySlotName(DaySlotType t) => t switch
+    {
+        DaySlotType.Training => "훈련",
+        DaySlotType.PartTime => "아르바이트",
+        DaySlotType.Shop => "상점",
+        DaySlotType.Investigation => "조사",
+        DaySlotType.Relationship => "호감도",
+        DaySlotType.Rest => "휴식",
+        _ => "?"
+    };
+
+    public static Color GetSlotColor(DaySlotType t,
+        Color training, Color partTime, Color shop,
+        Color investigation, Color relationship, Color rest) => t switch
+    {
+        DaySlotType.Training => training,
+        DaySlotType.PartTime => partTime,
+        DaySlotType.Shop => shop,
+        DaySlotType.Investigation => investigation,
+        DaySlotType.Relationship => relationship,
+        DaySlotType.Rest => rest,
+        _ => rest
+    };
+
+    static int NextArenaDay(int currentDay)
+    {
+        for (int d = currentDay + 1; d <= currentDay + 3; d++)
+            if (d % 3 == 0) return d;
+        return currentDay + 3;
     }
 }

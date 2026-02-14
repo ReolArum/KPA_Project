@@ -2,75 +2,97 @@ using UnityEngine;
 
 public static class SaveSystem
 {
-    const string KeyExists = "save_exists";
-    const string KeyDay = "save_day";
-    const string KeyGold = "save_gold";
-    const string KeyBlock = "save_block";
-    const string KeySchedule = "save_schedule"; // 문자열로 저장
+    const string Key = "save_json";
+
+    [System.Serializable]
+    private class SaveData
+    {
+        public int day;
+        public int gold;
+        public int currentDaySlot;
+        public int[] daySchedule;
+        public int nightChoice;
+        public bool nightCompleted;
+
+        public int statStrength;
+        public int statAgility;
+        public int statDexterity;
+        public int statEndurance;
+
+        public int stress;
+        public int fatigue;
+    }
 
     public static bool HasSave()
-        => PlayerPrefs.GetInt(KeyExists, 0) == 1;
+        => !string.IsNullOrEmpty(PlayerPrefs.GetString(Key, ""));
 
     public static void Save(GameState state)
     {
-        PlayerPrefs.SetInt(KeyExists, 1);
-        PlayerPrefs.SetInt(KeyDay, state.day);
-        PlayerPrefs.SetInt(KeyGold, state.gold);
-        PlayerPrefs.SetInt(KeyBlock, state.currentBlock);
+        var data = new SaveData
+        {
+            day = state.day,
+            gold = state.gold,
+            currentDaySlot = state.currentDaySlot,
+            nightChoice = (int)state.nightChoice,
+            nightCompleted = state.nightCompleted,
 
-        // schedule[26]을 "0,2,1,..." 같은 CSV로 저장
-        // SlotType: Strength=0, Stamina=1, Rest=2 (Enums.cs 순서 기준)
-        string[] arr = new string[GameManager.MaxBlocks];
-        for (int i = 0; i < GameManager.MaxBlocks; i++)
-            arr[i] = ((int)state.schedule[i]).ToString();
+            statStrength = state.statStrength,
+            statAgility = state.statAgility,
+            statDexterity = state.statDexterity,
+            statEndurance = state.statEndurance,
 
-        PlayerPrefs.SetString(KeySchedule, string.Join(",", arr));
+            stress = state.stress,
+            fatigue = state.fatigue
+        };
 
+        data.daySchedule = new int[GameState.DaySlotCount];
+        for (int i = 0; i < GameState.DaySlotCount; i++)
+            data.daySchedule[i] = (int)state.daySchedule[i];
+
+        string json = JsonUtility.ToJson(data);
+        PlayerPrefs.SetString(Key, json);
         PlayerPrefs.Save();
     }
 
     public static bool Load(GameState state)
     {
-        if (!HasSave()) return false;
+        string json = PlayerPrefs.GetString(Key, "");
+        if (string.IsNullOrEmpty(json)) return false;
 
-        state.day = PlayerPrefs.GetInt(KeyDay, 1);
-        state.gold = PlayerPrefs.GetInt(KeyGold, 0);
-        state.currentBlock = Mathf.Clamp(PlayerPrefs.GetInt(KeyBlock, 0), 0, GameManager.MaxBlocks);
+        var data = JsonUtility.FromJson<SaveData>(json);
+        if (data == null) return false;
 
-        string csv = PlayerPrefs.GetString(KeySchedule, "");
-        if (!string.IsNullOrEmpty(csv))
+        state.day = data.day;
+        state.gold = data.gold;
+        state.currentDaySlot = data.currentDaySlot;
+        state.nightChoice = (NightActionType)data.nightChoice;
+        state.nightCompleted = data.nightCompleted;
+
+        state.statStrength = data.statStrength;
+        state.statAgility = data.statAgility;
+        state.statDexterity = data.statDexterity;
+        state.statEndurance = data.statEndurance;
+
+        state.stress = data.stress;
+        state.fatigue = data.fatigue;
+
+        if (data.daySchedule != null)
         {
-            var parts = csv.Split(',');
-            for (int i = 0; i < GameManager.MaxBlocks; i++)
+            for (int i = 0; i < GameState.DaySlotCount; i++)
             {
-                int v = 2; // 기본 Rest
-                if (i < parts.Length) int.TryParse(parts[i], out v);
-                v = Mathf.Clamp(v, 0, 2);
-                state.schedule[i] = (SlotType)v;
+                if (i < data.daySchedule.Length)
+                    state.daySchedule[i] = (DaySlotType)Mathf.Clamp(data.daySchedule[i], 0, 5);
+                else
+                    state.daySchedule[i] = DaySlotType.Rest;
             }
         }
-        else
-        {
-            // 스케줄 문자열이 없으면 기본 Rest
-            for (int i = 0; i < GameManager.MaxBlocks; i++)
-                state.schedule[i] = SlotType.Rest;
-        }
-
-        // 오늘 누적치(todayStrengthTrain 등)는 "하루 중간 저장"을 원할 때만 저장하는 게 보통이라,
-        // 지금은 로드 시 0으로 둡니다.
-        state.todayStrengthTrain = 0;
-        state.todayStaminaTrain = 0;
 
         return true;
     }
 
     public static void Clear()
     {
-        PlayerPrefs.DeleteKey(KeyExists);
-        PlayerPrefs.DeleteKey(KeyDay);
-        PlayerPrefs.DeleteKey(KeyGold);
-        PlayerPrefs.DeleteKey(KeyBlock);
-        PlayerPrefs.DeleteKey(KeySchedule);
+        PlayerPrefs.DeleteKey(Key);
         PlayerPrefs.Save();
     }
 }
