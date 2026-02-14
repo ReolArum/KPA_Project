@@ -10,11 +10,11 @@ public class UIController : MonoBehaviour
     // ====================================================
     [Header("Panels")]
     [SerializeField] private GameObject panelTitle;
-    [SerializeField] private GameObject panelSchedule;      // 낮 스케줄 설정
-    [SerializeField] private GameObject panelDayProgress;    // 낮 진행
-    [SerializeField] private GameObject panelNightChoice;    // 밤 선택
-    [SerializeField] private GameObject panelNightAction;    // 밤 행동 결과
-    [SerializeField] private GameObject panelDaySummary;     // 결산
+    [SerializeField] private GameObject panelSchedule;
+    [SerializeField] private GameObject panelDayProgress;
+    [SerializeField] private GameObject panelNightChoice;
+    [SerializeField] private GameObject panelNightAction;
+    [SerializeField] private GameObject panelDaySummary;
 
     // ====================================================
     //  Top Bar
@@ -38,7 +38,19 @@ public class UIController : MonoBehaviour
     // ====================================================
     [Header("Day Progress")]
     [SerializeField] private TMP_Text textCurrentSlotInfo;
-    [SerializeField] private Button btnExecuteSlot; // "실행" 또는 "다음 슬롯"
+    [SerializeField] private TMP_Text textActionResult;      // 행동 결과 텍스트
+    [SerializeField] private Button btnExecuteSlot;
+
+    // ====================================================
+    //  Training Choice Popup
+    // ====================================================
+    [Header("Training Choice Popup")]
+    [SerializeField] private GameObject popupTrainingChoice;
+    [SerializeField] private Button btnTrainStrength;
+    [SerializeField] private Button btnTrainAgility;
+    [SerializeField] private Button btnTrainDexterity;
+    [SerializeField] private Button btnTrainEndurance;
+    [SerializeField] private TMP_Text textTrainingInfo;      // 현재 스탯 + 숙련도 표시
 
     // ====================================================
     //  Night Choice
@@ -47,8 +59,8 @@ public class UIController : MonoBehaviour
     [SerializeField] private Button btnNightExplore;
     [SerializeField] private Button btnNightArena;
     [SerializeField] private Button btnNightRest;
-    [SerializeField] private TMP_Text textArenaStatus;  // "아레나 오픈" / "아레나 휴무"
-    [SerializeField] private TMP_Text textNightWarning;  // 스트레스 경고 등
+    [SerializeField] private TMP_Text textArenaStatus;
+    [SerializeField] private TMP_Text textNightWarning;
 
     // ====================================================
     //  Night Action Result
@@ -66,7 +78,7 @@ public class UIController : MonoBehaviour
     //  Slot Selection Popup
     // ====================================================
     [Header("Slot Selection Popup")]
-    [SerializeField] private GameObject popupSlotSelect;
+    [SerializeField] private GameObject popupSlotDropdown;
     [SerializeField] private Button btnSlotTraining;
     [SerializeField] private Button btnSlotPartTime;
     [SerializeField] private Button btnSlotShop;
@@ -74,6 +86,14 @@ public class UIController : MonoBehaviour
     [SerializeField] private Button btnSlotRelationship;
     [SerializeField] private Button btnSlotRest;
     [SerializeField] private Button btnSlotClosePopup;
+
+    // ====================================================
+    //  Level Up Notice
+    // ====================================================
+    [Header("Level Up Notice")]
+    [SerializeField] private GameObject panelLevelUpNotice;
+    [SerializeField] private TMP_Text textLevelUpNotice;
+    [SerializeField] private Button btnCloseLevelUp;
 
     // ====================================================
     //  Colors
@@ -100,8 +120,12 @@ public class UIController : MonoBehaviour
         BuildScheduleGrid();
         SetupSlotPopupButtons();
         SetupNightButtons();
+        SetupTrainingButtons();
+        SetupLevelUpNotice();
 
         CloseSlotPopup();
+        ShowTrainingChoicePopup(false);
+        CloseLevelUpNotice();
     }
 
     // ====================================================
@@ -145,6 +169,19 @@ public class UIController : MonoBehaviour
         if (btnNightRest) btnNightRest.onClick.AddListener(() => gm.OnClickNightChoice((int)NightActionType.Rest));
     }
 
+    void SetupTrainingButtons()
+    {
+        if (btnTrainStrength) btnTrainStrength.onClick.AddListener(() => gm.OnTrainingStatChosen(TrainingStat.Strength));
+        if (btnTrainAgility) btnTrainAgility.onClick.AddListener(() => gm.OnTrainingStatChosen(TrainingStat.Agility));
+        if (btnTrainDexterity) btnTrainDexterity.onClick.AddListener(() => gm.OnTrainingStatChosen(TrainingStat.Dexterity));
+        if (btnTrainEndurance) btnTrainEndurance.onClick.AddListener(() => gm.OnTrainingStatChosen(TrainingStat.Endurance));
+    }
+
+    void SetupLevelUpNotice()
+    {
+        if (btnCloseLevelUp) btnCloseLevelUp.onClick.AddListener(CloseLevelUpNotice);
+    }
+
     // ====================================================
     //  Panel Switching
     // ====================================================
@@ -159,6 +196,7 @@ public class UIController : MonoBehaviour
         if (panelDaySummary) panelDaySummary.SetActive(phase == GamePhase.DaySummary);
 
         if (phase != GamePhase.ScheduleSetting) CloseSlotPopup();
+        if (phase != GamePhase.DayProgress) ShowTrainingChoicePopup(false);
     }
 
     // ====================================================
@@ -206,7 +244,7 @@ public class UIController : MonoBehaviour
 
         if (state.currentDaySlot >= GameState.DaySlotCount)
         {
-            textCurrentSlotInfo.text = "낮 일과 완료! 밤으로 전환됩니다.";
+            textCurrentSlotInfo.text = "낮 일과 완료!";
             return;
         }
 
@@ -218,6 +256,10 @@ public class UIController : MonoBehaviour
         textCurrentSlotInfo.text =
             $"[{time}~{endTime}] {actionName}\n" +
             $"슬롯 {state.currentDaySlot + 1} / {GameState.DaySlotCount}";
+
+        // 훈련 대기 중이면 팝업 표시
+        if (state.waitingForTrainingChoice)
+            RefreshTrainingPopup(state);
     }
 
     void RefreshNightChoice(GameState state)
@@ -229,24 +271,16 @@ public class UIController : MonoBehaviour
                 : $"아레나: 휴무 (다음 오픈: Day {NextArenaDay(state.day)})";
         }
 
-        // 아레나 버튼 비활성화
-        if (btnNightArena) btnNightArena.interactable = state.IsArenaOpen;
+        bool stressLocked = state.stress >= 80;
+        if (btnNightExplore) btnNightExplore.interactable = !stressLocked;
+        if (btnNightArena) btnNightArena.interactable = state.IsArenaOpen && !stressLocked;
 
-        // 스트레스 경고
         if (textNightWarning)
         {
-            if (state.stress >= 80)
-                textNightWarning.text = "스트레스가 너무 높습니다! 휴식만 가능합니다.";
-            else if (state.stress >= 60)
-                textNightWarning.text = "스트레스가 높습니다. 주의하세요.";
-            else
-                textNightWarning.text = "";
+            if (stressLocked) textNightWarning.text = "스트레스가 너무 높습니다! 휴식만 가능합니다.";
+            else if (state.stress >= 60) textNightWarning.text = "스트레스가 높습니다. 주의하세요.";
+            else textNightWarning.text = "";
         }
-
-        // 스트레스 80 이상이면 탐사/아레나 비활성화
-        bool locked = state.stress >= 80;
-        if (btnNightExplore) btnNightExplore.interactable = !locked;
-        if (btnNightArena) btnNightArena.interactable = state.IsArenaOpen && !locked;
     }
 
     void RefreshNightAction(GameState state)
@@ -268,23 +302,100 @@ public class UIController : MonoBehaviour
     {
         if (textSummary == null) return;
 
+        var pt = state.profTraining;
+        var pi = state.profInvestigation;
+        var pe = state.profExploration;
+        var pp = state.profPartTime;
+
         textSummary.text =
             $"===== Day {state.day} 결산 =====\n\n" +
-            $"훈련 횟수: {state.todayTrainingCount}\n" +
-            $"획득 골드: {state.todayGoldEarned}\n" +
-            $"총 골드: {state.gold}\n\n" +
-            $"스트레스: {state.stress}  |  피로: {state.fatigue}\n\n" +
-            $"[스탯]\n" +
-            $"  힘: {state.statStrength}\n" +
-            $"  민첩: {state.statAgility}\n" +
-            $"  재주: {state.statDexterity}\n" +
-            $"  지구력: {state.statEndurance}\n\n" +
-            (state.IsArenaOpen ? "오늘은 아레나가 열린 날이었습니다.\n" : "") +
-            $"내일 아레나: {(state.day + 1) % 3 == 0}";
+
+            $"[전투 스탯]\n" +
+            $"  힘: {state.statStrength}  민첩: {state.statAgility}\n" +
+            $"  재주: {state.statDexterity}  지구력: {state.statEndurance}\n\n" +
+
+            $"[숙련도]\n" +
+            $"  훈련  Lv.{pt.level} ({pt.exp}/{(pt.IsMaxLevel ? "MAX" : pt.ExpToNext + pt.exp + "")})\n" +
+            $"  조사  Lv.{pi.level} ({pi.exp}/{(pi.IsMaxLevel ? "MAX" : pi.ExpToNext + pi.exp + "")})\n" +
+            $"  탐사  Lv.{pe.level} ({pe.exp}/{(pe.IsMaxLevel ? "MAX" : pe.ExpToNext + pe.exp + "")})\n" +
+            $"  알바  Lv.{pp.level} ({pp.exp}/{(pp.IsMaxLevel ? "MAX" : pp.ExpToNext + pp.exp + "")})\n\n" +
+
+            $"[오늘]\n" +
+            $"  훈련: {state.todayTrainingCount}회  |  획득 골드: {state.todayGoldEarned}\n" +
+            $"  총 골드: {state.gold}\n" +
+            $"  스트레스: {state.stress}  |  피로: {state.fatigue}\n\n" +
+
+            (state.IsArenaOpen ? "오늘은 아레나가 열린 날이었습니다.\n" : "");
     }
 
     // ====================================================
-    //  Warnings (GameManager에서 호출)
+    //  Training Choice Popup
+    // ====================================================
+
+    public void ShowTrainingChoicePopup(bool show)
+    {
+        if (popupTrainingChoice) popupTrainingChoice.SetActive(show);
+
+        if (show && gm != null)
+            RefreshTrainingPopup(gm.State);
+    }
+
+    void RefreshTrainingPopup(GameState state)
+    {
+        if (textTrainingInfo == null) return;
+
+        var p = state.profTraining;
+        string lvlInfo = p.IsMaxLevel ? "MAX" : $"Lv.{p.level} (EXP: {p.exp})";
+        string bonus = p.TrainingStatMultiplier > 1f ? $"  보너스: +{(p.TrainingStatMultiplier - 1f) * 100:0}%" : "";
+        string fatigueNote = p.TrainingFatigueReduction > 0 ? $"  피로 경감: -{p.TrainingFatigueReduction}" : "";
+        string advNote = p.AdvancedTrainingUnlocked ? "\n  ★ 상급 훈련 해금!" : "";
+
+        textTrainingInfo.text =
+            $"훈련할 스탯을 선택하세요.\n\n" +
+            $"  힘: {state.statStrength}  |  민첩: {state.statAgility}\n" +
+            $"  재주: {state.statDexterity}  |  지구력: {state.statEndurance}\n\n" +
+            $"훈련 숙련도: {lvlInfo}{bonus}{fatigueNote}{advNote}";
+    }
+
+    // ====================================================
+    //  Action Result (간단 토스트)
+    // ====================================================
+
+    public void ShowActionResult(string msg)
+    {
+        if (textActionResult) textActionResult.text = msg;
+    }
+
+    // ====================================================
+    //  Level Up Notice
+    // ====================================================
+
+    public void ShowLevelUpNotice(ProficiencyType type, int newLevel)
+    {
+        if (panelLevelUpNotice == null) return;
+
+        string typeName = type switch
+        {
+            ProficiencyType.Training => "훈련",
+            ProficiencyType.Investigation => "조사",
+            ProficiencyType.Exploration => "탐사",
+            ProficiencyType.PartTime => "아르바이트",
+            _ => "?"
+        };
+
+        if (textLevelUpNotice)
+            textLevelUpNotice.text = $"{typeName} 숙련도가 Lv.{newLevel}로 상승했습니다!";
+
+        panelLevelUpNotice.SetActive(true);
+    }
+
+    void CloseLevelUpNotice()
+    {
+        if (panelLevelUpNotice) panelLevelUpNotice.SetActive(false);
+    }
+
+    // ====================================================
+    //  Warnings
     // ====================================================
 
     public void ShowArenaClosedWarning()
@@ -298,30 +409,20 @@ public class UIController : MonoBehaviour
     }
 
     // ====================================================
-    //  Schedule Slot Click → Popup
+    //  Schedule Slot Popup
     // ====================================================
 
     public void OnClickScheduleSlot(int index)
     {
         if (gm != null && gm.Phase != GamePhase.ScheduleSetting) return;
-
         popupTargetIndex = index;
-        OpenSlotPopup();
-    }
-
-    void OpenSlotPopup()
-    {
         if (popupSlotDropdown) popupSlotDropdown.SetActive(true);
     }
-
-    [Header("(Popup ref — same as popupSlotSelect)")]
-    [SerializeField] private GameObject popupSlotDropdown; // Inspector에서 popupSlotSelect와 같은 오브젝트 할당
 
     void CloseSlotPopup()
     {
         popupTargetIndex = -1;
         if (popupSlotDropdown) popupSlotDropdown.SetActive(false);
-        if (popupSlotSelect) popupSlotSelect.SetActive(false);
     }
 
     void SelectSlotType(DaySlotType t)

@@ -5,6 +5,13 @@ public static class SaveSystem
     const string Key = "save_json";
 
     [System.Serializable]
+    private class ProfSaveData
+    {
+        public int level;
+        public int exp;
+    }
+
+    [System.Serializable]
     private class SaveData
     {
         public int day;
@@ -21,10 +28,29 @@ public static class SaveSystem
 
         public int stress;
         public int fatigue;
+
+        // 숙련도
+        public ProfSaveData profTraining;
+        public ProfSaveData profInvestigation;
+        public ProfSaveData profExploration;
+        public ProfSaveData profPartTime;
     }
 
     public static bool HasSave()
         => !string.IsNullOrEmpty(PlayerPrefs.GetString(Key, ""));
+
+    static ProfSaveData ToSaveData(Proficiency p) => new()
+    {
+        level = p.level,
+        exp = p.exp
+    };
+
+    static void FromSaveData(ProfSaveData data, Proficiency p)
+    {
+        if (data == null) return;
+        p.level = Mathf.Clamp(data.level, 1, 5);
+        p.exp = Mathf.Max(0, data.exp);
+    }
 
     public static void Save(GameState state)
     {
@@ -42,15 +68,19 @@ public static class SaveSystem
             statEndurance = state.statEndurance,
 
             stress = state.stress,
-            fatigue = state.fatigue
+            fatigue = state.fatigue,
+
+            profTraining = ToSaveData(state.profTraining),
+            profInvestigation = ToSaveData(state.profInvestigation),
+            profExploration = ToSaveData(state.profExploration),
+            profPartTime = ToSaveData(state.profPartTime)
         };
 
         data.daySchedule = new int[GameState.DaySlotCount];
         for (int i = 0; i < GameState.DaySlotCount; i++)
             data.daySchedule[i] = (int)state.daySchedule[i];
 
-        string json = JsonUtility.ToJson(data);
-        PlayerPrefs.SetString(Key, json);
+        PlayerPrefs.SetString(Key, JsonUtility.ToJson(data));
         PlayerPrefs.Save();
     }
 
@@ -75,6 +105,11 @@ public static class SaveSystem
 
         state.stress = data.stress;
         state.fatigue = data.fatigue;
+
+        FromSaveData(data.profTraining, state.profTraining);
+        FromSaveData(data.profInvestigation, state.profInvestigation);
+        FromSaveData(data.profExploration, state.profExploration);
+        FromSaveData(data.profPartTime, state.profPartTime);
 
         if (data.daySchedule != null)
         {
