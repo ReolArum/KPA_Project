@@ -68,33 +68,26 @@ public class GameManager : MonoBehaviour
 
         MapLocation target = (MapLocation)locationIndex;
 
-        // 같은 장소면 이동 안 함 (행동 소모 없음)
         if (target == State.playerLocation)
         {
-            // 같은 장소에서 행동만 하고 싶은 경우 → 바로 장소 UI
             SetPhase(GamePhase.DayPlaceAction);
             return;
         }
 
-        // 다른 장소로 이동 → 행동 1회 소모
         State.playerLocation = target;
         State.playerActionsUsed++;
 
-        // 전투체 스케줄 1블록 자동 진행
         ExecuteFighterSlot();
 
-        // 행동 다 썼으면 밤으로
         if (State.IsDayOver)
         {
             TransitionToNight();
             return;
         }
 
-        // 장소 도착 → 장소 행동 UI
         SetPhase(GamePhase.DayPlaceAction);
     }
 
-    // 장소에서 아무것도 안 하고 지도로 돌아가기
     public void OnClickBackToMap()
     {
         if (Phase != GamePhase.DayPlaceAction) return;
@@ -112,7 +105,6 @@ public class GameManager : MonoBehaviour
         PlaceActionType action = (PlaceActionType)actionIndex;
         ExecutePlaceAction(action);
 
-        // 장소 행동 후 지도로 복귀
         if (State.IsDayOver)
             TransitionToNight();
         else
@@ -132,13 +124,13 @@ public class GameManager : MonoBehaviour
             case PlaceActionType.Investigate:
                 State.stress += 2;
                 State.endingVars.Modify(EndingVar.Reputation, 1);
-                bool ilvl = State.profInvestigation.AddExp(3);
-                if (ilvl) ui.ShowLevelUpNotice(ProficiencyType.Investigation, State.profInvestigation.level);
+                var profInv = State.GetProf(ProficiencyType.Investigation);
+                bool ilvl = profInv.AddExp(3);
+                if (ilvl) ui.ShowLevelUpNotice(ProficiencyType.Investigation, profInv.level);
                 ui.ShowActionResult("조사 수행. 평판 +1");
                 break;
 
             case PlaceActionType.AcceptQuest:
-                // UI에서 선택한 퀘스트 수령
                 ui.ShowActionResult("의뢰를 확인하세요.");
                 break;
 
@@ -178,29 +170,31 @@ public class GameManager : MonoBehaviour
         if (State.fighterSlotProgress >= DaySlotCount) return;
 
         FighterSlot slot = State.fighterSchedule[State.fighterSlotProgress];
+        var profTrain = State.GetProf(ProficiencyType.Training);
+        var profPart = State.GetProf(ProficiencyType.PartTime);
 
         switch (slot.type)
         {
             case FighterSlotType.Training:
                 State.AddStat(slot.trainingStat, BaseTrainAmount);
                 State.todayTrainingCount++;
-                State.fatigue += Mathf.Max(0, TrainFatigue - State.profTraining.TrainingFatigueReduction);
+                State.fatigue += Mathf.Max(0, TrainFatigue - profTrain.TrainingFatigueReduction);
                 State.stress += TrainStress;
                 State.endingVars.Modify(EndingVar.Sync, 1);
-                State.profTraining.AddExp(3);
+                profTrain.AddExp(3);
 
                 string statName = GetStatName(slot.trainingStat);
                 ui.ShowFighterSlotResult($"전투체: {statName} 훈련 완료 (+{BaseTrainAmount})");
                 break;
 
             case FighterSlotType.PartTime:
-                float bigChance = 0.1f + State.profPartTime.PartTimeBigSuccessBonus;
+                float bigChance = 0.1f + profPart.PartTimeBigSuccessBonus;
                 bool big = Random.value < bigChance;
                 int reward = big ? 20 : 10;
                 State.gold += reward;
                 State.todayGoldEarned += reward;
                 State.fatigue += 1;
-                State.profPartTime.AddExp(2);
+                profPart.AddExp(2);
                 ui.ShowFighterSlotResult($"전투체: 알바 {(big ? "대성공" : "완료")} (+{reward}G)");
                 break;
 
@@ -220,7 +214,6 @@ public class GameManager : MonoBehaviour
 
     void TransitionToNight()
     {
-        // 남은 전투체 스케줄 전부 소화
         while (State.fighterSlotProgress < DaySlotCount)
             ExecuteFighterSlot();
 
@@ -260,8 +253,9 @@ public class GameManager : MonoBehaviour
                 State.fatigue += 3;
                 State.gold += 5;
                 State.endingVars.Modify(EndingVar.Reputation, 1);
-                bool elvl = State.profExploration.AddExp(4);
-                if (elvl) ui.ShowLevelUpNotice(ProficiencyType.Exploration, State.profExploration.level);
+                var profExp = State.GetProf(ProficiencyType.Exploration);
+                bool elvl = profExp.AddExp(4);
+                if (elvl) ui.ShowLevelUpNotice(ProficiencyType.Exploration, profExp.level);
                 break;
 
             case NightActionType.Arena:
@@ -314,7 +308,7 @@ public class GameManager : MonoBehaviour
     }
 
     // ====================================================
-    //  Quest (UI에서 호출)
+    //  Quest
     // ====================================================
 
     public void OnClickAcceptQuest(int questId)
@@ -345,7 +339,6 @@ public class GameManager : MonoBehaviour
         if (phase == GamePhase.DaySummary)
             return "22:00";
 
-        // 낮: 행동 1회 = 3시간, 08:00 시작
         int hour = 8 + state.playerActionsUsed * 3;
         return $"{hour:00}:00";
     }
@@ -356,7 +349,16 @@ public class GameManager : MonoBehaviour
         TrainingStat.Agility => "민첩",
         TrainingStat.Dexterity => "재주",
         TrainingStat.Endurance => "지구력",
-        _ => "?"
+        _ => stat.ToString()
+    };
+
+    public static string GetProfName(ProficiencyType type) => type switch
+    {
+        ProficiencyType.Training => "훈련",
+        ProficiencyType.Investigation => "조사",
+        ProficiencyType.Exploration => "탐사",
+        ProficiencyType.PartTime => "알바",
+        _ => type.ToString()
     };
 
     // ====================================================
@@ -386,10 +388,8 @@ public class GameManager : MonoBehaviour
 
     public void DebugAddProfExp()
     {
-        State.profTraining.AddExp(10);
-        State.profInvestigation.AddExp(10);
-        State.profExploration.AddExp(10);
-        State.profPartTime.AddExp(10);
+        foreach (ProficiencyType p in System.Enum.GetValues(typeof(ProficiencyType)))
+            State.GetProf(p).AddExp(10);
         ui.RefreshAll(State, Phase);
     }
 

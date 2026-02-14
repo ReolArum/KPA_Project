@@ -9,15 +9,30 @@ public static class SaveSystem
     [System.Serializable]
     private class FighterSlotSaveData
     {
-        public int type;          // FighterSlotType
-        public int trainingStat;  // TrainingStat
+        public int type;
+        public int trainingStat;
+    }
+
+    [System.Serializable]
+    private class StatSaveData
+    {
+        public int enumValue;
+        public int amount;
     }
 
     [System.Serializable]
     private class ProfSaveData
     {
+        public int enumValue;
         public int level;
         public int exp;
+    }
+
+    [System.Serializable]
+    private class EndingSaveData
+    {
+        public int enumValue;
+        public int amount;
     }
 
     [System.Serializable]
@@ -31,54 +46,29 @@ public static class SaveSystem
     }
 
     [System.Serializable]
-    private class EndingSaveData
-    {
-        public int reputation;
-        public int corpA;
-        public int corpB;
-        public int sync;
-        public int ethics;
-    }
-
-    [System.Serializable]
     private class SaveData
     {
-        // 기본
         public int day;
         public int gold;
 
-        // 전투체 스케줄
         public int fighterSlotProgress;
         public FighterSlotSaveData[] fighterSchedule;
 
-        // 플레이어
         public int playerActionsUsed;
         public int playerLocation;
 
-        // 밤
         public int nightChoice;
         public bool nightCompleted;
 
-        // 전투 스탯
-        public int statStrength;
-        public int statAgility;
-        public int statDexterity;
-        public int statEndurance;
+        public StatSaveData[] stats;
 
-        // 컨디션
         public int stress;
         public int fatigue;
 
-        // 숙련도
-        public ProfSaveData profTraining;
-        public ProfSaveData profInvestigation;
-        public ProfSaveData profExploration;
-        public ProfSaveData profPartTime;
+        public ProfSaveData[] proficiencies;
 
-        // 엔딩 변수
-        public EndingSaveData endingVars;
+        public EndingSaveData[] endingVars;
 
-        // 아레나
         public ArenaSaveData arena;
     }
 
@@ -91,9 +81,6 @@ public static class SaveSystem
 
     public static void Save(GameState state)
     {
-        var ev = state.endingVars;
-        var ar = state.arena;
-
         var data = new SaveData
         {
             day = state.day,
@@ -103,40 +90,11 @@ public static class SaveSystem
             playerLocation = (int)state.playerLocation,
             nightChoice = (int)state.nightChoice,
             nightCompleted = state.nightCompleted,
-
-            statStrength = state.statStrength,
-            statAgility = state.statAgility,
-            statDexterity = state.statDexterity,
-            statEndurance = state.statEndurance,
-
             stress = state.stress,
-            fatigue = state.fatigue,
-
-            profTraining = ToSaveData(state.profTraining),
-            profInvestigation = ToSaveData(state.profInvestigation),
-            profExploration = ToSaveData(state.profExploration),
-            profPartTime = ToSaveData(state.profPartTime),
-
-            endingVars = new EndingSaveData
-            {
-                reputation = ev.reputation,
-                corpA = ev.corpARelation,
-                corpB = ev.corpBRelation,
-                sync = ev.synchronization,
-                ethics = ev.ethicsEfficiency
-            },
-
-            arena = new ArenaSaveData
-            {
-                rank = (int)ar.currentRank,
-                wins = ar.wins,
-                losses = ar.losses,
-                promotionWins = ar.promotionWins,
-                promotionLosses = ar.promotionLosses
-            }
+            fatigue = state.fatigue
         };
 
-        // 전투체 스케줄 저장 (타입 + 훈련 스탯)
+        // 전투체 스케줄
         data.fighterSchedule = new FighterSlotSaveData[GameState.DaySlotCount];
         for (int i = 0; i < GameState.DaySlotCount; i++)
         {
@@ -147,6 +105,58 @@ public static class SaveSystem
                 trainingStat = (int)slot.trainingStat
             };
         }
+
+        // 스탯 → 배열
+        var statValues = System.Enum.GetValues(typeof(TrainingStat));
+        data.stats = new StatSaveData[statValues.Length];
+        int si = 0;
+        foreach (TrainingStat s in statValues)
+        {
+            data.stats[si++] = new StatSaveData
+            {
+                enumValue = (int)s,
+                amount = state.GetStat(s)
+            };
+        }
+
+        // 숙련도 → 배열
+        var profValues = System.Enum.GetValues(typeof(ProficiencyType));
+        data.proficiencies = new ProfSaveData[profValues.Length];
+        int pi = 0;
+        foreach (ProficiencyType p in profValues)
+        {
+            var prof = state.GetProf(p);
+            data.proficiencies[pi++] = new ProfSaveData
+            {
+                enumValue = (int)p,
+                level = prof.level,
+                exp = prof.exp
+            };
+        }
+
+        // 엔딩 변수 → 배열
+        var endValues = System.Enum.GetValues(typeof(EndingVar));
+        data.endingVars = new EndingSaveData[endValues.Length];
+        int ei = 0;
+        foreach (EndingVar v in endValues)
+        {
+            data.endingVars[ei++] = new EndingSaveData
+            {
+                enumValue = (int)v,
+                amount = state.endingVars.Get(v)
+            };
+        }
+
+        // 아레나
+        var ar = state.arena;
+        data.arena = new ArenaSaveData
+        {
+            rank = (int)ar.currentRank,
+            wins = ar.wins,
+            losses = ar.losses,
+            promotionWins = ar.promotionWins,
+            promotionLosses = ar.promotionLosses
+        };
 
         string json = JsonUtility.ToJson(data, false);
         PlayerPrefs.SetString(Key, json);
@@ -169,34 +179,47 @@ public static class SaveSystem
         state.playerLocation = (MapLocation)data.playerLocation;
         state.nightChoice = (NightActionType)data.nightChoice;
         state.nightCompleted = data.nightCompleted;
-
-        // 전투 스탯
-        state.statStrength = data.statStrength;
-        state.statAgility = data.statAgility;
-        state.statDexterity = data.statDexterity;
-        state.statEndurance = data.statEndurance;
-
-        // 컨디션
         state.stress = data.stress;
         state.fatigue = data.fatigue;
 
-        // 숙련도
-        FromSaveData(data.profTraining, state.profTraining);
-        FromSaveData(data.profInvestigation, state.profInvestigation);
-        FromSaveData(data.profExploration, state.profExploration);
-        FromSaveData(data.profPartTime, state.profPartTime);
-
-        // 엔딩 변수
-        if (data.endingVars != null)
+        // 스탯 복원
+        if (data.stats != null)
         {
-            state.endingVars.reputation = data.endingVars.reputation;
-            state.endingVars.corpARelation = data.endingVars.corpA;
-            state.endingVars.corpBRelation = data.endingVars.corpB;
-            state.endingVars.synchronization = data.endingVars.sync;
-            state.endingVars.ethicsEfficiency = data.endingVars.ethics;
+            foreach (var sd in data.stats)
+            {
+                var key = (TrainingStat)sd.enumValue;
+                if (state.stats.ContainsKey(key))
+                    state.stats[key] = sd.amount;
+            }
         }
 
-        // 아레나
+        // 숙련도 복원
+        if (data.proficiencies != null)
+        {
+            foreach (var pd in data.proficiencies)
+            {
+                var key = (ProficiencyType)pd.enumValue;
+                if (state.proficiencies.ContainsKey(key))
+                {
+                    var prof = state.proficiencies[key];
+                    prof.level = Mathf.Clamp(pd.level, 1, 5);
+                    prof.exp = Mathf.Max(0, pd.exp);
+                }
+            }
+        }
+
+        // 엔딩 변수 복원
+        if (data.endingVars != null)
+        {
+            foreach (var ed in data.endingVars)
+            {
+                var key = (EndingVar)ed.enumValue;
+                if (state.endingVars.values.ContainsKey(key))
+                    state.endingVars.values[key] = ed.amount;
+            }
+        }
+
+        // 아레나 복원
         if (data.arena != null)
         {
             state.arena.currentRank = (ArenaRank)data.arena.rank;
@@ -216,7 +239,8 @@ public static class SaveSystem
                     state.fighterSchedule[i].type =
                         (FighterSlotType)Mathf.Clamp(data.fighterSchedule[i].type, 0, 2);
                     state.fighterSchedule[i].trainingStat =
-                        (TrainingStat)Mathf.Clamp(data.fighterSchedule[i].trainingStat, 0, 3);
+                        (TrainingStat)Mathf.Clamp(data.fighterSchedule[i].trainingStat, 0,
+                            System.Enum.GetValues(typeof(TrainingStat)).Length - 1);
                 }
                 else
                 {
@@ -233,23 +257,5 @@ public static class SaveSystem
     {
         PlayerPrefs.DeleteKey(Key);
         PlayerPrefs.Save();
-    }
-
-    // ─── Helper ───
-
-    private static ProfSaveData ToSaveData(Proficiency p)
-    {
-        return new ProfSaveData
-        {
-            level = p.level,
-            exp = p.exp
-        };
-    }
-
-    private static void FromSaveData(ProfSaveData data, Proficiency p)
-    {
-        if (data == null) return;
-        p.level = Mathf.Clamp(data.level, 1, 5);
-        p.exp = Mathf.Max(0, data.exp);
     }
 }

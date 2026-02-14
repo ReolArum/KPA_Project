@@ -7,16 +7,12 @@ public class ArenaSystem
     public ArenaRank currentRank = ArenaRank.Bronze;
     public int wins = 0;
     public int losses = 0;
-    public int promotionWins = 0;   // 승급전 승리 횟수
-    public int promotionLosses = 0; // 승급전 패배 횟수
+    public int promotionWins = 0;
+    public int promotionLosses = 0;
 
-    /// <summary>일반 아레나 전투 결과 처리 (더미)</summary>
     public ArenaBattleResult ProcessNormalBattle(GameState state)
     {
-        // TODO: 실제 전투 시스템 연동
-        // 지금은 스탯 합산으로 간단한 승률 계산
-        int totalStat = state.statStrength + state.statAgility
-                      + state.statDexterity + state.statEndurance;
+        int totalStat = state.GetTotalPower();
 
         float winChance = Mathf.Clamp01(0.3f + totalStat * 0.005f);
         bool won = UnityEngine.Random.value < winChance;
@@ -45,13 +41,10 @@ public class ArenaSystem
         }
     }
 
-    /// <summary>승급전 결과 처리</summary>
     public ArenaBattleResult ProcessPromotionBattle(GameState state)
     {
-        int totalStat = state.statStrength + state.statAgility
-                      + state.statDexterity + state.statEndurance;
+        int totalStat = state.GetTotalPower();
 
-        // 승급전은 좀 더 어려움
         float winChance = Mathf.Clamp01(0.2f + totalStat * 0.005f);
         bool won = UnityEngine.Random.value < winChance;
 

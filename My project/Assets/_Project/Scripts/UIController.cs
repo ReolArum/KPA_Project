@@ -434,20 +434,38 @@ public class UIController : MonoBehaviour
     {
         if (textSummary == null) return;
 
-        var ev = state.endingVars;
         var ar = state.arena;
+
+        // 스탯 자동 생성
+        string statText = "";
+        foreach (TrainingStat s in System.Enum.GetValues(typeof(TrainingStat)))
+        {
+            if (statText.Length > 0) statText += "  ";
+            statText += $"{GameManager.GetStatName(s)}: {state.GetStat(s)}";
+        }
+
+        // 숙련도 자동 생성
+        string profText = "";
+        foreach (ProficiencyType p in System.Enum.GetValues(typeof(ProficiencyType)))
+        {
+            if (profText.Length > 0) profText += "  ";
+            profText += $"{GameManager.GetProfName(p)} Lv.{state.GetProf(p).level}";
+        }
+
+        // 엔딩 변수 자동 생성
+        string endText = "";
+        foreach (EndingVar v in System.Enum.GetValues(typeof(EndingVar)))
+        {
+            if (endText.Length > 0) endText += "  ";
+            endText += $"{state.endingVars.GetLabel(v)}: {state.endingVars.Get(v)}";
+        }
 
         textSummary.text =
             $"===== {state.DateString} 결산 =====\n\n" +
-            $"[전투 스탯]\n" +
-            $"  힘: {state.statStrength}  민첩: {state.statAgility}\n" +
-            $"  재주: {state.statDexterity}  지구력: {state.statEndurance}\n\n" +
+            $"[전투 스탯]\n  {statText}\n\n" +
             $"[아레나] 등급: {ar.GetRankName()}  전적: {ar.wins}승 {ar.losses}패\n\n" +
-            $"[숙련도] 훈련 Lv.{state.profTraining.level}  조사 Lv.{state.profInvestigation.level}  " +
-            $"탐사 Lv.{state.profExploration.level}  알바 Lv.{state.profPartTime.level}\n\n" +
-            $"[엔딩 변수]\n" +
-            $"  평판: {ev.reputation}  기업A: {ev.corpARelation}  기업B: {ev.corpBRelation}\n" +
-            $"  동기화: {ev.synchronization}  성향: {ev.ethicsEfficiency}\n\n" +
+            $"[숙련도] {profText}\n\n" +
+            $"[엔딩 변수]\n  {endText}\n\n" +
             $"[오늘] 훈련: {state.todayTrainingCount}회  획득: {state.todayGoldEarned}G\n" +
             $"총 Gold: {state.gold}  스트레스: {state.stress}  피로: {state.fatigue}";
     }
@@ -469,7 +487,6 @@ public class UIController : MonoBehaviour
 
         if (type == FighterSlotType.Training)
         {
-            // 1단계 팝업 닫고 → 2단계(스탯 선택) 팝업 열기
             gm.State.fighterSchedule[popupTargetIndex].type = FighterSlotType.Training;
             CloseSlotPopup();
             OpenTrainingStatPopup();
@@ -477,7 +494,7 @@ public class UIController : MonoBehaviour
         else
         {
             gm.State.fighterSchedule[popupTargetIndex].type = type;
-            gm.State.fighterSchedule[popupTargetIndex].trainingStat = TrainingStat.Strength; // 기본값
+            gm.State.fighterSchedule[popupTargetIndex].trainingStat = TrainingStat.Strength;
             CloseSlotPopup();
             RefreshScheduleGrid(gm.State);
         }
@@ -505,7 +522,6 @@ public class UIController : MonoBehaviour
     void CloseSlotPopup()
     {
         if (popupSlotDropdown) popupSlotDropdown.SetActive(false);
-        // popupTargetIndex는 2단계에서도 쓰므로 여기서 리셋하지 않음
     }
 
     // ====================================================
@@ -525,15 +541,7 @@ public class UIController : MonoBehaviour
     public void ShowLevelUpNotice(ProficiencyType type, int newLevel)
     {
         if (panelLevelUpNotice == null) return;
-        string typeName = type switch
-        {
-            ProficiencyType.Training => "훈련",
-            ProficiencyType.Investigation => "조사",
-            ProficiencyType.Exploration => "탐사",
-            ProficiencyType.PartTime => "아르바이트",
-            _ => "?"
-        };
-        if (textLevelUpNotice) textLevelUpNotice.text = $"{typeName} 숙련도가 Lv.{newLevel}로 상승했습니다!";
+        if (textLevelUpNotice) textLevelUpNotice.text = $"{GameManager.GetProfName(type)} 숙련도가 Lv.{newLevel}로 상승했습니다!";
         panelLevelUpNotice.SetActive(true);
     }
 
@@ -544,9 +552,11 @@ public class UIController : MonoBehaviour
         if (panelBattleResult == null) return;
         if (textBattleResult)
         {
-            string text = result.message + "\n\n" + $"보상: {result.goldReward} Gold\n" +
+            string text = result.message + "\n\n" +
+                $"보상: {result.goldReward} Gold\n" +
                 $"평판: {(result.reputationChange >= 0 ? "+" : "")}{result.reputationChange}";
-            if (result.isPromotion && result.won) text += $"\n\n승급! {result.oldRank} -> {result.newRank}";
+            if (result.isPromotion && result.won)
+                text += $"\n\n승급! {result.oldRank} -> {result.newRank}";
             textBattleResult.text = text;
         }
         panelBattleResult.SetActive(true);
