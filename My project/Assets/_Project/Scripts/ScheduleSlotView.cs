@@ -28,16 +28,10 @@ public class ScheduleSlotView : MonoBehaviour
         if (timeLabelText != null) timeLabelText.text = label;
     }
 
-    public void SetType(DaySlotType t,
-        Color training, Color partTime, Color shop,
-        Color investigation, Color relationship, Color rest)
+    public void SetDirect(string label, Color color)
     {
-        if (typeText != null)
-            typeText.text = UIController.GetDaySlotName(t);
-
-        if (background != null)
-            background.color = UIController.GetSlotColor(t,
-                training, partTime, shop, investigation, relationship, rest);
+        if (typeText != null) typeText.text = label;
+        if (background != null) background.color = color;
     }
 
     public void SetProgressVisual(int currentSlot)
@@ -48,7 +42,6 @@ public class ScheduleSlotView : MonoBehaviour
         if (background == null) return;
 
         var c = background.color;
-
         if (past) c.a = 0.4f;
         else c.a = 1f;
 

@@ -2,16 +2,28 @@ using System;
 using UnityEngine;
 
 [Serializable]
+public class FighterSlot
+{
+    public FighterSlotType type = FighterSlotType.Rest;
+    public TrainingStat trainingStat = TrainingStat.Strength; // 훈련일 때만 사용
+}
+
+[Serializable]
 public class GameState
 {
     // ===== 기본 =====
     public int day = 1;
     public int gold = 0;
 
-    // ===== 낮 스케줄 (4슬롯) =====
+    // ===== 전투체 낮 스케줄 (4블록) =====
     public const int DaySlotCount = 4;
-    public DaySlotType[] daySchedule = new DaySlotType[DaySlotCount];
-    public int currentDaySlot = 0;
+    public FighterSlot[] fighterSchedule = new FighterSlot[DaySlotCount];
+    public int fighterSlotProgress = 0;
+
+    // ===== 플레이어 낮 행동 =====
+    public const int MaxPlayerActions = 4;
+    public int playerActionsUsed = 0;
+    public MapLocation playerLocation = MapLocation.Home;
 
     // ===== 밤 =====
     public NightActionType nightChoice = NightActionType.Rest;
@@ -33,17 +45,26 @@ public class GameState
     public Proficiency profExploration = new() { type = ProficiencyType.Exploration };
     public Proficiency profPartTime = new() { type = ProficiencyType.PartTime };
 
+    // ===== 엔딩 변수 =====
+    public EndingVariables endingVars = new();
+
+    // ===== 아레나 =====
+    public ArenaSystem arena = new();
+
+    // ===== 의뢰 =====
+    public QuestSystem quests = new();
+
     // ===== 오늘 누적 =====
     public int todayTrainingCount = 0;
     public int todayGoldEarned = 0;
 
-    // ===== 훈련 대기 (세부 선택 필요 플래그) =====
-    public bool waitingForTrainingChoice = false;
+    // ===== 판정 =====
+    public bool IsArenaOpen => CalendarSystem.IsArenaDay(day);
+    public bool IsPromotionDay => CalendarSystem.IsPromotionDay(day);
+    public string DateString => CalendarSystem.FormatDate(day);
+    public bool IsDayOver => playerActionsUsed >= MaxPlayerActions;
 
-    // ===== 아레나 =====
-    public bool IsArenaOpen => day % 3 == 0;
-
-    // ===== 숙련도 조회 헬퍼 =====
+    // ===== 숙련도 조회 =====
     public Proficiency GetProficiency(ProficiencyType type) => type switch
     {
         ProficiencyType.Training => profTraining,
@@ -53,10 +74,9 @@ public class GameState
         _ => profTraining
     };
 
-    // ===== 스탯 적용 헬퍼 =====
+    // ===== 스탯 적용 =====
     public void AddStat(TrainingStat stat, int baseAmount)
     {
-        // 훈련 숙련도 보너스 적용
         float multiplier = profTraining.TrainingStatMultiplier;
         int final_amount = Mathf.Max(1, Mathf.RoundToInt(baseAmount * multiplier));
 
@@ -79,17 +99,29 @@ public class GameState
     };
 
     // ===== 초기화 =====
+    public GameState()
+    {
+        for (int i = 0; i < DaySlotCount; i++)
+            fighterSchedule[i] = new FighterSlot();
+    }
+
     public void ResetForNewDay()
     {
         day += 1;
-        currentDaySlot = 0;
+        fighterSlotProgress = 0;
+        playerActionsUsed = 0;
+        playerLocation = MapLocation.Home;
         nightChoice = NightActionType.Rest;
         nightCompleted = false;
-        waitingForTrainingChoice = false;
         todayTrainingCount = 0;
         todayGoldEarned = 0;
 
         for (int i = 0; i < DaySlotCount; i++)
-            daySchedule[i] = DaySlotType.Rest;
+        {
+            fighterSchedule[i].type = FighterSlotType.Rest;
+            fighterSchedule[i].trainingStat = TrainingStat.Strength;
+        }
+
+        quests.GenerateDailyQuests(day);
     }
 }
