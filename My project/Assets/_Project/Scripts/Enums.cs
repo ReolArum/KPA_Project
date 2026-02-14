@@ -47,3 +47,12 @@ public enum PlaceType
     RelationshipSpot,
     RestArea
 }
+
+// 숙련도 카테고리 (4종)
+public enum ProficiencyType
+{
+    Training,       // 훈련
+    Investigation,  // 조사
+    Exploration,    // 탐사
+    PartTime        // 아르바이트
+}
