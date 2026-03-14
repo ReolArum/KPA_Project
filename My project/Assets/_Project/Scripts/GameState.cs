@@ -140,9 +140,8 @@ public class GameState
         nightCompleted = false;
         todayTrainingCount = 0;
         todayGoldEarned = 0;
-
-        for (int i = 0; i < DaySlotCount; i++)
-            fighterSchedule[i] = new FighterSlot();
+        // 버그 수정: 스케줄(type, trainingStat)은 유지 → 플레이어가 설정한 스케줄이 다음 날도 유지됨
+        // fighterSchedule은 건드리지 않음
     }
 
     // ===== 전체 초기화 (새 게임) =====

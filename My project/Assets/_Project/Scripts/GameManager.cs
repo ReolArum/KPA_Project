@@ -97,6 +97,8 @@ public class GameManager : MonoBehaviour
 
         if (target == State.playerLocation)
         {
+            // 행동권이 남아있을 때만 같은 장소 행동 패널로 진입
+            if (State.IsDayOver) return;
             SetPhase(GamePhase.DayPlaceAction);
             return;
         }
@@ -347,14 +349,13 @@ public class GameManager : MonoBehaviour
                 arenaResult = new ArenaBattleResult
                 {
                     won              = true,
-                    goldReward       = 50,
+                    goldReward       = 80,  // 버그 수정: 50(기본) + 30(승급 보너스) 통합 → 이중 적용 방지
                     reputationChange = 10,
                     isPromotion      = true,
                     oldRank          = oldRank,
                     newRank          = State.arena.currentRank,
                     message          = $"승급전 승리! {oldRank} → {State.arena.currentRank}"
                 };
-                State.gold += 30; // 승급 보너스
             }
             else
             {
@@ -413,6 +414,8 @@ public class GameManager : MonoBehaviour
     {
         if (Phase != GamePhase.DaySummary) return;
         State.ResetForNewDay();
+        // 버그 수정: 매일 새 의뢰 생성 (ResetForNewDay에서 day++가 먼저 실행됨)
+        State.quests.GenerateDailyQuests(State.day);
         SaveSystem.Save(State);
         SetPhase(GamePhase.ScheduleSetting);
     }
