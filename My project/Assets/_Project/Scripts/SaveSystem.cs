@@ -1,10 +1,9 @@
+// ===== SaveSystem.cs =====
 using UnityEngine;
 
 public static class SaveSystem
 {
     private const string Key = "save_json";
-
-    // ─── 내부 직렬화 클래스 ───
 
     [System.Serializable]
     private class FighterSlotSaveData
@@ -46,6 +45,13 @@ public static class SaveSystem
     }
 
     [System.Serializable]
+    private class CombatSaveData
+    {
+        public int school;
+        public int schoolLevel;
+    }
+
+    [System.Serializable]
     private class SaveData
     {
         public int day;
@@ -70,9 +76,9 @@ public static class SaveSystem
         public EndingSaveData[] endingVars;
 
         public ArenaSaveData arena;
-    }
 
-    // ─── Public API ───
+        public CombatSaveData combat;
+    }
 
     public static bool HasSave()
     {
@@ -106,7 +112,7 @@ public static class SaveSystem
             };
         }
 
-        // 스탯 → 배열
+        // 스탯
         var statValues = System.Enum.GetValues(typeof(TrainingStat));
         data.stats = new StatSaveData[statValues.Length];
         int si = 0;
@@ -119,7 +125,7 @@ public static class SaveSystem
             };
         }
 
-        // 숙련도 → 배열
+        // 숙련도
         var profValues = System.Enum.GetValues(typeof(ProficiencyType));
         data.proficiencies = new ProfSaveData[profValues.Length];
         int pi = 0;
@@ -134,7 +140,7 @@ public static class SaveSystem
             };
         }
 
-        // 엔딩 변수 → 배열
+        // 엔딩 변수
         var endValues = System.Enum.GetValues(typeof(EndingVar));
         data.endingVars = new EndingSaveData[endValues.Length];
         int ei = 0;
@@ -158,6 +164,13 @@ public static class SaveSystem
             promotionLosses = ar.promotionLosses
         };
 
+        // ★ 전투 데이터
+        data.combat = new CombatSaveData
+        {
+            school = (int)state.combatData.activeSchool,
+            schoolLevel = state.combatData.GetSchoolLevel(state.combatData.activeSchool)
+        };
+
         string json = JsonUtility.ToJson(data, false);
         PlayerPrefs.SetString(Key, json);
         PlayerPrefs.Save();
@@ -171,7 +184,6 @@ public static class SaveSystem
         var data = JsonUtility.FromJson<SaveData>(json);
         if (data == null) return false;
 
-        // 기본
         state.day = data.day;
         state.gold = data.gold;
         state.fighterSlotProgress = data.fighterSlotProgress;
@@ -248,6 +260,15 @@ public static class SaveSystem
                     state.fighterSchedule[i].trainingStat = TrainingStat.Strength;
                 }
             }
+        }
+
+        // ★ 전투 데이터 복원
+        if (data.combat != null)
+        {
+            state.combatData.activeSchool = (SchoolType)Mathf.Clamp(data.combat.school, 0,
+                System.Enum.GetValues(typeof(SchoolType)).Length - 1);
+            state.combatData.SetSchoolLevel(state.combatData.activeSchool,
+                Mathf.Max(0, data.combat.schoolLevel));
         }
 
         return true;

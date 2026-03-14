@@ -1,0 +1,35 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e12d9e44cf2d41449aa2384bf118778c, type: 3}
+  m_Name: Skill_HeavyBlow
+  m_EditorClassIdentifier: Assembly-CSharp::SkillData
+  skillName: "\uD5E4\uBE44 \uBE14\uB85C\uC6B0"
+  category: 0
+  icon: {fileID: 0}
+  description: "\uC804\uB825\uC744 \uB2E4\uD55C \uAC15\uB825\uD55C \uC77C\uACA9.
+    \uC0C1\uB300 \uD589\uB3D9\uB3C4 \uC9C0\uC5F0."
+  weight: 1.5
+  damageMultiplier: 2
+  avAdvance: 0
+  avDelay: 500
+  ignoreDefense: 0
+  appliedBuff: {fileID: 0}
+  appliedDebuff: {fileID: 0}
+  unlockCondition:
+    unlockType: 1
+    requiredStat: 0
+    requiredStatValue: 20
+    requiredSkill: {fileID: 0}
+    requiredUsageCount: 0
+    requiredSchoolType: 0
+    requiredSchoolLevel: 0
+    requiredEventId: 

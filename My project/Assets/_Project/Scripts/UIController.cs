@@ -1,3 +1,4 @@
+// ===== UIController.cs =====
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
@@ -16,6 +17,7 @@ public class UIController : MonoBehaviour
     [SerializeField] private GameObject panelNightChoice;
     [SerializeField] private GameObject panelNightAction;
     [SerializeField] private GameObject panelDaySummary;
+    [SerializeField] private GameObject panelBattle;
 
     // ====================================================
     //  Top Bar
@@ -272,6 +274,10 @@ public class UIController : MonoBehaviour
         if (panelNightChoice) panelNightChoice.SetActive(phase == GamePhase.NightChoice);
         if (panelNightAction) panelNightAction.SetActive(phase == GamePhase.NightAction);
         if (panelDaySummary) panelDaySummary.SetActive(phase == GamePhase.DaySummary);
+        if (panelBattle) panelBattle.SetActive(phase == GamePhase.Battle);
+
+        // ★ 추가: 전투 준비가 아닌 페이즈에서는 다른 패널만 표시
+        // (BattlePreparation 패널은 BattlePreparationUI가 직접 관리)
 
         if (phase != GamePhase.ScheduleSetting)
         {
@@ -436,7 +442,7 @@ public class UIController : MonoBehaviour
 
         var ar = state.arena;
 
-        // 스탯 자동 생성
+        // 스탯
         string statText = "";
         foreach (TrainingStat s in System.Enum.GetValues(typeof(TrainingStat)))
         {
@@ -444,7 +450,7 @@ public class UIController : MonoBehaviour
             statText += $"{GameManager.GetStatName(s)}: {state.GetStat(s)}";
         }
 
-        // 숙련도 자동 생성
+        // 숙련도
         string profText = "";
         foreach (ProficiencyType p in System.Enum.GetValues(typeof(ProficiencyType)))
         {
@@ -452,12 +458,19 @@ public class UIController : MonoBehaviour
             profText += $"{GameManager.GetProfName(p)} Lv.{state.GetProf(p).level}";
         }
 
-        // 엔딩 변수 자동 생성
+        // 엔딩 변수
         string endText = "";
         foreach (EndingVar v in System.Enum.GetValues(typeof(EndingVar)))
         {
             if (endText.Length > 0) endText += "  ";
             endText += $"{state.endingVars.GetLabel(v)}: {state.endingVars.Get(v)}";
+        }
+
+        // ★ 수정: 전투 리포트 (string으로 저장됨)
+        string battleText = "";
+        if (!string.IsNullOrEmpty(state.lastBattleReport))
+        {
+            battleText = $"\n\n[전투 리포트]\n{state.lastBattleReport}";
         }
 
         textSummary.text =
@@ -467,7 +480,8 @@ public class UIController : MonoBehaviour
             $"[숙련도] {profText}\n\n" +
             $"[엔딩 변수]\n  {endText}\n\n" +
             $"[오늘] 훈련: {state.todayTrainingCount}회  획득: {state.todayGoldEarned}G\n" +
-            $"총 Gold: {state.gold}  스트레스: {state.stress}  피로: {state.fatigue}";
+            $"총 Gold: {state.gold}  스트레스: {state.stress}  피로: {state.fatigue}" +
+            battleText;
     }
 
     // ====================================================

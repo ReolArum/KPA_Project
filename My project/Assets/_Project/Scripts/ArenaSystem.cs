@@ -10,6 +10,10 @@ public class ArenaSystem
     public int promotionWins = 0;
     public int promotionLosses = 0;
 
+    /// <summary>
+    /// 기존 확률 기반 일반 전투. BattleManager가 없을 때 폴백으로 사용.
+    /// BattleManager가 있을 경우 이 메서드는 호출되지 않음.
+    /// </summary>
     public ArenaBattleResult ProcessNormalBattle(GameState state)
     {
         int totalStat = state.GetTotalPower();
@@ -41,6 +45,10 @@ public class ArenaSystem
         }
     }
 
+    /// <summary>
+    /// 기존 확률 기반 승급전. BattleManager가 없을 때 폴백으로 사용.
+    /// BattleManager가 있을 경우 이 메서드는 호출되지 않음.
+    /// </summary>
     public ArenaBattleResult ProcessPromotionBattle(GameState state)
     {
         int totalStat = state.GetTotalPower();

@@ -1,0 +1,71 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bb1b750d40ff7ef4787afffa9f088784, type: 3}
+  m_Name: School_Ironclad
+  m_EditorClassIdentifier: Assembly-CSharp::SchoolData
+  schoolName: "\uCCA0\uBCBD\uB958"
+  schoolType: 2
+  icon: {fileID: 0}
+  description: "\uACAC\uACE0\uD55C \uC218\uBE44\uB85C \uC0C1\uB300\uC758 \uACF5\uACA9\uC744
+    \uB9C9\uC544\uB0B4\uB294 \uC720\uD30C. \uB192\uC740 \uBC29\uC5B4\uB825\uACFC
+    HP\uC5D0 \uD2B9\uD654."
+  levels:
+  - levelName: "\uCD08\uC2DD"
+    description: "\uAE30\uBCF8\uC801\uC778 \uBC29\uC5B4 \uC790\uC138\uB97C \uC775\uD78C\uB2E4."
+    bonus:
+      physAtkBonus: 0
+      physDefBonus: 8
+      spdBonus: 0
+      maxHPBonus: 5
+      hitRateBonus: 0
+      evasionBonus: 0
+      critRateBonus: 0
+      critDamageBonus: 0
+      ignoreDefenseChance: 0
+      counterAttackChance: 0
+      damageReduction: 0
+      skillCooldownReduction: 0
+    unlockedSkill: {fileID: 0}
+  - levelName: "\uC911\uC2DD"
+    description: "\uCCA0\uBCBD \uBC29\uC5B4\uB85C \uD53C\uD574\uB97C \uD06C\uAC8C
+      \uC904\uC778\uB2E4."
+    bonus:
+      physAtkBonus: 0
+      physDefBonus: 12
+      spdBonus: 0
+      maxHPBonus: 10
+      hitRateBonus: 0
+      evasionBonus: 0
+      critRateBonus: 0
+      critDamageBonus: 0
+      ignoreDefenseChance: 0
+      counterAttackChance: 0
+      damageReduction: 5
+      skillCooldownReduction: 0
+    unlockedSkill: {fileID: 0}
+  - levelName: "\uC624\uC758"
+    description: "\uB09C\uACF5\uBD88\uB77D\uC758 \uACBD\uC9C0\uC5D0 \uC774\uB974\uB7EC
+      \uBC18\uACA9\uAE4C\uC9C0 \uAC00\uB2A5\uD574\uC9C4\uB2E4."
+    bonus:
+      physAtkBonus: 0
+      physDefBonus: 15
+      spdBonus: 0
+      maxHPBonus: 15
+      hitRateBonus: 0
+      evasionBonus: 0
+      critRateBonus: 0
+      critDamageBonus: 0
+      ignoreDefenseChance: 0
+      counterAttackChance: 15
+      damageReduction: 10
+      skillCooldownReduction: 0
+    unlockedSkill: {fileID: 0}

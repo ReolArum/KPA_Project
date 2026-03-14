@@ -1,0 +1,34 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e12d9e44cf2d41449aa2384bf118778c, type: 3}
+  m_Name: Skill_Feint
+  m_EditorClassIdentifier: Assembly-CSharp::SkillData
+  skillName: "\uD398\uC778\uD2B8"
+  category: 3
+  icon: {fileID: 0}
+  description: "\uD5C8\uB97C \uCC14\uB7EC \uC0C1\uB300\uC758 \uD589\uB3D9\uC744 \uC9C0\uC5F0\uC2DC\uD0A8\uB2E4."
+  weight: 1.5
+  damageMultiplier: 0.7
+  avAdvance: 0
+  avDelay: 1000
+  ignoreDefense: 0
+  appliedBuff: {fileID: 0}
+  appliedDebuff: {fileID: 0}
+  unlockCondition:
+    unlockType: 0
+    requiredStat: 0
+    requiredStatValue: 0
+    requiredSkill: {fileID: 0}
+    requiredUsageCount: 0
+    requiredSchoolType: 0
+    requiredSchoolLevel: 0
+    requiredEventId: 

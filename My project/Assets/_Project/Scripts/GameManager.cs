@@ -1,14 +1,17 @@
+// ===== GameManager.cs =====
 using UnityEngine;
-
+using UnityEngine.SceneManagement;
 public class GameManager : MonoBehaviour
 {
     [Header("Refs")]
     [SerializeField] private UIController ui;
+    [SerializeField] private BattleManager battleManager;
+    [SerializeField] private BattleUIController battleUI;
+    [SerializeField] private BattlePreparationUI battlePrepUI;  // ★ 추가
 
     public GameState State { get; private set; } = new GameState();
     public GamePhase Phase { get; private set; } = GamePhase.Title;
 
-    // ===== 상수 =====
     public const int DaySlotCount = GameState.DaySlotCount;
     public const int MaxPlayerActions = GameState.MaxPlayerActions;
 
@@ -16,20 +19,39 @@ public class GameManager : MonoBehaviour
     const int TrainFatigue = 3;
     const int TrainStress = 1;
 
-    void Awake()
+void Awake()
+{
+    // ===== 전투 씬에서 돌아왔는지 확인 ★ =====
+    if (BattleSceneData.battleCompleted)
     {
         if (ui == null) ui = FindFirstObjectByType<UIController>();
 
-        for (int i = 0; i < DaySlotCount; i++)
-        {
-            State.fighterSchedule[i].type = FighterSlotType.Rest;
-            State.fighterSchedule[i].trainingStat = TrainingStat.Strength;
-        }
+        State = BattleSceneData.gameState;
+        var report = BattleSceneData.battleReport;
+        BattleSceneData.Clear();
 
-        State.quests.GenerateDailyQuests(State.day);
-        SaveSystem.Load(State);
-        SetPhase(GamePhase.Title);
+        SetPhase(GamePhase.NightAction);
+        OnBattleFinished(report);
+        return;
     }
+
+    // ===== 기존 초기화 코드 =====
+    if (ui == null) ui = FindFirstObjectByType<UIController>();
+    if (battleManager == null) battleManager = FindFirstObjectByType<BattleManager>();
+    if (battleUI == null) battleUI = FindFirstObjectByType<BattleUIController>();
+    if (battlePrepUI == null) battlePrepUI = FindFirstObjectByType<BattlePreparationUI>();
+
+    for (int i = 0; i < DaySlotCount; i++)
+    {
+        State.fighterSchedule[i].type = FighterSlotType.Rest;
+        State.fighterSchedule[i].trainingStat = TrainingStat.Strength;
+    }
+
+    State.quests.GenerateDailyQuests(State.day);
+    SaveSystem.Load(State);
+    SetPhase(GamePhase.Title);
+}
+
 
     void SetPhase(GamePhase next)
     {
@@ -47,7 +69,7 @@ public class GameManager : MonoBehaviour
     }
 
     // ====================================================
-    //  Schedule Setting (전투체 스케줄)
+    //  Schedule Setting
     // ====================================================
     public void OnClickConfirmSchedule()
     {
@@ -58,9 +80,8 @@ public class GameManager : MonoBehaviour
     }
 
     // ====================================================
-    //  Day Map (플레이어 지도 이동)
+    //  Day Map
     // ====================================================
-
     public void OnClickMapLocation(int locationIndex)
     {
         if (Phase != GamePhase.DayMap) return;
@@ -95,9 +116,8 @@ public class GameManager : MonoBehaviour
     }
 
     // ====================================================
-    //  Place Actions (장소 내 행동)
+    //  Place Actions
     // ====================================================
-
     public void OnClickPlaceAction(int actionIndex)
     {
         if (Phase != GamePhase.DayPlaceAction) return;
@@ -162,9 +182,8 @@ public class GameManager : MonoBehaviour
     }
 
     // ====================================================
-    //  Fighter Schedule (전투체 자동 진행)
+    //  Fighter Schedule
     // ====================================================
-
     void ExecuteFighterSlot()
     {
         if (State.fighterSlotProgress >= DaySlotCount) return;
@@ -211,7 +230,6 @@ public class GameManager : MonoBehaviour
     // ====================================================
     //  Night
     // ====================================================
-
     void TransitionToNight()
     {
         while (State.fighterSlotProgress < DaySlotCount)
@@ -256,34 +274,173 @@ public class GameManager : MonoBehaviour
                 var profExp = State.GetProf(ProficiencyType.Exploration);
                 bool elvl = profExp.AddExp(4);
                 if (elvl) ui.ShowLevelUpNotice(ProficiencyType.Exploration, profExp.level);
+                State.nightCompleted = true;
+                SetPhase(GamePhase.DaySummary);
                 break;
 
             case NightActionType.Arena:
                 State.stress += 3;
                 State.fatigue += 5;
-
-                ArenaBattleResult result;
-                if (State.IsPromotionDay)
-                {
-                    result = State.arena.ProcessPromotionBattle(State);
-                    if (result.won) ApplyPromotionReward();
-                }
-                else
-                {
-                    result = State.arena.ProcessNormalBattle(State);
-                }
-
-                State.gold += result.goldReward;
-                State.todayGoldEarned += result.goldReward;
-                State.endingVars.Modify(EndingVar.Reputation, result.reputationChange);
-                ui.ShowBattleResult(result);
-                break;
+                StartArenaBattle();
+                return;
 
             case NightActionType.Rest:
                 State.stress = Mathf.Max(0, State.stress - 5);
                 State.fatigue = Mathf.Max(0, State.fatigue - 5);
+                State.nightCompleted = true;
+                SetPhase(GamePhase.DaySummary);
                 break;
         }
+    }
+
+    // ====================================================
+    //  ★ 아레나 전투 (전투 준비 → 전투)
+    // ====================================================
+    void StartArenaBattle()
+    {
+        // 전투 준비 화면으로 이동
+        Phase = GamePhase.BattlePreparation;
+        ui.ShowPhase(GamePhase.BattlePreparation);
+
+        if (battlePrepUI != null)
+        {
+            battlePrepUI.Open(State,
+                onStart: () =>
+                {
+                    // 전투 시작 버튼 클릭 시
+                    battlePrepUI.Close();
+                    BeginBattle();
+                },
+                onCancel: () =>
+                {
+                    // 돌아가기 버튼 클릭 시
+                    battlePrepUI.Close();
+                    State.stress -= 3;  // 아레나 선택 시 추가된 스트레스 복구
+                    State.fatigue -= 5; // 아레나 선택 시 추가된 피로 복구
+                    State.nightCompleted = false;
+                    SetPhase(GamePhase.NightChoice);
+                }
+            );
+        }
+        else
+        {
+            // 전투 준비 UI 없으면 바로 전투
+            BeginBattle();
+        }
+    }
+
+   void BeginBattle()
+{
+    // 전투 데이터 설정
+    BattleSceneData.SetupBattle(State);
+
+    // 전투 씬으로 이동
+    UnityEngine.SceneManagement.SceneManager.LoadScene("BattleScene");
+}
+
+
+    void OnBattleFinished(BattleReport report)
+    {
+        if (battleManager != null)
+            battleManager.OnBattleEnd -= OnBattleFinished;
+
+        if (battleUI != null)
+            battleUI.gameObject.SetActive(false);
+
+        State.lastBattleReport = report.ToReportString();
+
+        ArenaBattleResult arenaResult;
+
+        if (State.IsPromotionDay)
+        {
+            if (report.playerWon)
+            {
+                State.arena.promotionWins++;
+                ArenaRank oldRank = State.arena.currentRank;
+                if (State.arena.currentRank < ArenaRank.Champion)
+                    State.arena.currentRank++;
+
+                arenaResult = new ArenaBattleResult
+                {
+                    won = true,
+                    goldReward = 50,
+                    reputationChange = 10,
+                    isPromotion = true,
+                    oldRank = oldRank,
+                    newRank = State.arena.currentRank,
+                    message = $"승급전 승리! {oldRank} → {State.arena.currentRank}"
+                };
+                ApplyPromotionReward();
+            }
+            else
+            {
+                State.arena.promotionLosses++;
+                arenaResult = new ArenaBattleResult
+                {
+                    won = false,
+                    goldReward = 10,
+                    reputationChange = -3,
+                    isPromotion = true,
+                    oldRank = State.arena.currentRank,
+                    newRank = State.arena.currentRank,
+                    message = "승급전 패배... 다음 기회를 노리세요."
+                };
+            }
+        }
+        else
+        {
+            if (report.playerWon)
+            {
+                State.arena.wins++;
+                arenaResult = new ArenaBattleResult
+                {
+                    won = true,
+                    goldReward = 20,
+                    reputationChange = 3,
+                    message = "아레나 승리!"
+                };
+            }
+            else
+            {
+                State.arena.losses++;
+                arenaResult = new ArenaBattleResult
+                {
+                    won = false,
+                    goldReward = 5,
+                    reputationChange = -1,
+                    message = "아레나 패배..."
+                };
+            }
+        }
+
+        State.gold += arenaResult.goldReward;
+        State.todayGoldEarned += arenaResult.goldReward;
+        State.endingVars.Modify(EndingVar.Reputation, arenaResult.reputationChange);
+
+        ui.ShowBattleResult(arenaResult);
+
+        State.nightCompleted = true;
+        SetPhase(GamePhase.DaySummary);
+    }
+
+    void FallbackArenaBattle()
+    {
+        ArenaBattleResult result;
+
+        if (State.IsPromotionDay)
+        {
+            result = State.arena.ProcessPromotionBattle(State);
+            if (result.won) ApplyPromotionReward();
+        }
+        else
+        {
+            result = State.arena.ProcessNormalBattle(State);
+        }
+
+        State.gold += result.goldReward;
+        State.todayGoldEarned += result.goldReward;
+        State.endingVars.Modify(EndingVar.Reputation, result.reputationChange);
+        ui.ShowBattleResult(result);
 
         State.nightCompleted = true;
         SetPhase(GamePhase.DaySummary);
@@ -297,7 +454,6 @@ public class GameManager : MonoBehaviour
     // ====================================================
     //  Day Summary
     // ====================================================
-
     public void OnClickNextDay()
     {
         if (Phase != GamePhase.DaySummary) return;
@@ -310,7 +466,6 @@ public class GameManager : MonoBehaviour
     // ====================================================
     //  Quest
     // ====================================================
-
     public void OnClickAcceptQuest(int questId)
     {
         if (State.quests.AcceptQuest(questId))
@@ -324,20 +479,18 @@ public class GameManager : MonoBehaviour
     // ====================================================
     //  Calendar
     // ====================================================
-
     public void OnClickOpenCalendar() => ui.ShowCalendar(State);
     public void OnClickCloseCalendar() => ui.HideCalendar();
 
     // ====================================================
-    //  Time Utility
+    //  Utility
     // ====================================================
-
     public static string GetCurrentTimeLabel(GameState state, GamePhase phase)
     {
-        if (phase == GamePhase.NightChoice || phase == GamePhase.NightAction)
-            return "20:00";
-        if (phase == GamePhase.DaySummary)
-            return "22:00";
+        if (phase == GamePhase.BattlePreparation) return "20:30";  // ★ 추가
+        if (phase == GamePhase.Battle) return "21:00";
+        if (phase == GamePhase.NightChoice || phase == GamePhase.NightAction) return "20:00";
+        if (phase == GamePhase.DaySummary) return "22:00";
 
         int hour = 8 + state.playerActionsUsed * 3;
         return $"{hour:00}:00";
@@ -364,7 +517,6 @@ public class GameManager : MonoBehaviour
     // ====================================================
     //  Debug
     // ====================================================
-
     public void DebugAddGold10()
     {
         State.gold += 10;
@@ -398,5 +550,10 @@ public class GameManager : MonoBehaviour
         int next = CalendarSystem.NextPromotionDay(State.day);
         State.day = next - 1;
         ui.RefreshAll(State, Phase);
+    }
+
+    public void DebugForceBattle()
+    {
+        StartArenaBattle();
     }
 }

@@ -1,0 +1,35 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e12d9e44cf2d41449aa2384bf118778c, type: 3}
+  m_Name: Skill_IronWall
+  m_EditorClassIdentifier: Assembly-CSharp::SkillData
+  skillName: "\uCCA0\uBCBD \uC218\uBE44"
+  category: 1
+  icon: {fileID: 0}
+  description: "\uC644\uBCBD\uD55C \uBC29\uC5B4 \uD0DC\uC138\uB85C \uD53C\uD574\uB97C
+    \uCD5C\uC18C\uD654\uD55C\uB2E4."
+  weight: 1.5
+  damageMultiplier: 0.1
+  avAdvance: 0
+  avDelay: 0
+  ignoreDefense: 0
+  appliedBuff: {fileID: 0}
+  appliedDebuff: {fileID: 0}
+  unlockCondition:
+    unlockType: 1
+    requiredStat: 2
+    requiredStatValue: 15
+    requiredSkill: {fileID: 0}
+    requiredUsageCount: 0
+    requiredSchoolType: 0
+    requiredSchoolLevel: 0
+    requiredEventId: 
