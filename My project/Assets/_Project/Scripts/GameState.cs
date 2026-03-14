@@ -135,12 +135,12 @@ public class GameState
         day++;
         fighterSlotProgress = 0;
         playerActionsUsed = 0;
-        playerLocation = MapLocation.Home;
+        playerLocation = MapLocation.None;
         nightChoice = NightActionType.Rest;
         nightCompleted = false;
         todayTrainingCount = 0;
         todayGoldEarned = 0;
-        // 버그 수정: 스케줄(type, trainingStat)은 유지 → 플레이어가 설정한 스케줄이 다음 날도 유지됨
+        // 스케줄(type, trainingStat)은 유지 → 플레이어가 설정한 스케줄이 다음 날도 유지됨
         // fighterSchedule은 건드리지 않음
     }
 

@@ -81,7 +81,7 @@ public class GameManager : MonoBehaviour
     {
         State.fighterSlotProgress = 0;
         State.playerActionsUsed   = 0;
-        State.playerLocation      = MapLocation.Home;
+        State.playerLocation      = MapLocation.None;
         SetPhase(GamePhase.DayMap);
     }
 
@@ -115,6 +115,9 @@ public class GameManager : MonoBehaviour
     public void OnClickBackToMap()
     {
         if (Phase != GamePhase.DayPlaceAction) return;
+        // 지도로 돌아갈 때 위치를 None으로 초기화
+        // → 어떤 장소를 다시 클릭해도 "재입장"으로 인식해 행동권 소모
+        State.playerLocation = MapLocation.None;
         SetPhase(GamePhase.DayMap);
     }
 
@@ -127,19 +130,11 @@ public class GameManager : MonoBehaviour
 
         PlaceActionType action = (PlaceActionType)actionIndex;
 
-        // AcceptQuest는 의뢰 목록 확인만 → 행동권 소모 없음
-        bool consumesAction = action != PlaceActionType.AcceptQuest;
-
         ExecutePlaceAction(action);
 
-        if (consumesAction)
-        {
-            State.playerActionsUsed++;
-            ExecuteFighterSlot();
-        }
-
-        if (State.IsDayOver) TransitionToNight();
-        else                 SetPhase(consumesAction ? GamePhase.DayMap : GamePhase.DayPlaceAction);
+        // 행동권은 소모하지 않음 → 같은 장소에서 여러 번 행동 가능
+        // 행동권 소모는 장소 이동 시에만 발생 (OnClickMapLocation)
+        SetPhase(GamePhase.DayPlaceAction);
     }
 
     void ExecutePlaceAction(PlaceActionType action)
