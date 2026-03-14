@@ -123,10 +123,21 @@ public class GameManager : MonoBehaviour
     {
         if (Phase != GamePhase.DayPlaceAction) return;
 
-        ExecutePlaceAction((PlaceActionType)actionIndex);
+        PlaceActionType action = (PlaceActionType)actionIndex;
+
+        // AcceptQuest는 의뢰 목록 확인만 → 행동권 소모 없음
+        bool consumesAction = action != PlaceActionType.AcceptQuest;
+
+        ExecutePlaceAction(action);
+
+        if (consumesAction)
+        {
+            State.playerActionsUsed++;
+            ExecuteFighterSlot();
+        }
 
         if (State.IsDayOver) TransitionToNight();
-        else                 SetPhase(GamePhase.DayMap);
+        else                 SetPhase(consumesAction ? GamePhase.DayMap : GamePhase.DayPlaceAction);
     }
 
     void ExecutePlaceAction(PlaceActionType action)
@@ -148,6 +159,7 @@ public class GameManager : MonoBehaviour
                 break;
 
             case PlaceActionType.AcceptQuest:
+                // 행동권 소모 없음 - 목록 열람만
                 ui.ShowActionResult("의뢰를 확인하세요.");
                 break;
 
