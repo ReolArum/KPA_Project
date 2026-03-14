@@ -7,102 +7,125 @@ public class CombatUnit
 {
     public string unitName;
 
-    // 원본 스탯 (훈련 + 장비 기본)
-    public CombatBaseStats rawStats;
+    // 원본 스탯 (훈련 + 장비 기반)
+    public CombatBaseStats rawStats    = new CombatBaseStats();
     // 버프 적용 후 실효 스탯
-    public CombatBaseStats effectiveStats;
-    public CombatDerivedStats derived = new();
+    public CombatBaseStats effectiveStats = new CombatBaseStats();
+    public CombatDerivedStats derived     = new CombatDerivedStats();
 
     // 전투 상태
     public float currentHP;
     public float currentAV;
 
-    // 장비
-    public EquipmentData[] equipment = new EquipmentData[4]; // Head, Body, Arms, Legs
+    // 장비 (슬롯 4개: Head, Body, Arms, Legs)
+    public EquipmentData[] equipment = new EquipmentData[4];
 
-    // 스킬 슬롯 (초기 3개)
-    public List<SkillData> equippedSkills = new();
+    // 스킬 슬롯
+    public List<SkillData> equippedSkills = new List<SkillData>();
 
     // 유파
-    public SchoolType school = SchoolType.None;
-    public int schoolLevel = 1;
+    public SchoolType schoolType  = SchoolType.None;
+    public int        schoolLevel = 0;
 
-    // AI 성향 (유파/레벨업으로 결정)
-    public Dictionary<SkillCategory, float> tendency = new()
+    // AI 성향 (유파/전략에 따라 결정)
+    public Dictionary<SkillCategory, float> tendency = new Dictionary<SkillCategory, float>
     {
-        { SkillCategory.Strike, 0.3f },
-        { SkillCategory.Defense, 0.2f },
+        { SkillCategory.Strike,   0.30f },
+        { SkillCategory.Defense,  0.20f },
         { SkillCategory.Mobility, 0.25f },
-        { SkillCategory.Tactics, 0.25f }
+        { SkillCategory.Tactics,  0.25f }
     };
 
-    // 버프 목록
-    public List<BuffInstance> activeBuffs = new();
+    // 활성 버프 목록
+    public List<BuffInstance> activeBuffs = new List<BuffInstance>();
 
-    // ===== 초기화 =====
+    // ====================================================
+    //  팩토리 메서드
+    // ====================================================
 
-    /// <summary>GameState로부터 전투 유닛 생성 (플레이어 클론)</summary>
+    /// <summary>GameState → 플레이어 전투 유닛 생성</summary>
     public static CombatUnit CreateFromGameState(GameState state)
     {
-        var unit = new CombatUnit();
+        var unit      = new CombatUnit();
         unit.unitName = "내 클론";
-        unit.rawStats = CombatBaseStats.FromTrainingStats(state.stats);
 
-        // 장비 스탯 적용
-        foreach (var equip in unit.equipment)
-            equip?.ApplyTo(unit.rawStats);
+        // combatData(장비 포함) 통해 스탯 계산
+        unit.rawStats = state.combatData.CalculateCombatStats(state);
+
+        // 장비 참조 복사
+        foreach (EquipSlot slot in System.Enum.GetValues(typeof(EquipSlot)))
+        {
+            var equip = state.combatData.GetEquippedItem(slot);
+            unit.equipment[(int)slot] = equip;
+        }
+
+        // 유파 정보 복사
+        unit.schoolType  = state.combatData.activeSchool;
+        unit.schoolLevel = state.combatData.GetSchoolLevel(unit.schoolType);
+
+        // 장착 스킬 복사 (없으면 폴백은 BattleSceneController에서 처리)
+        unit.equippedSkills.Clear();
+        unit.equippedSkills.AddRange(state.combatData.equippedSkills);
 
         unit.Recalculate();
         unit.currentHP = unit.derived.MaxHP;
-        unit.currentAV = 10000f / unit.derived.SPD;
+        unit.currentAV = unit.derived.SPD > 0 ? 10000f / unit.derived.SPD : 10000f;
 
         return unit;
     }
 
-    /// <summary>상대 NPC 생성 (랭크 기반)</summary>
+    /// <summary>랭크 기반 NPC 상대 생성</summary>
     public static CombatUnit CreateOpponent(ArenaRank rank, int day)
     {
-        var unit = new CombatUnit();
+        var unit      = new CombatUnit();
         unit.unitName = GenerateOpponentName(rank);
 
-        // 랭크 + 날짜 기반 스탯 스케일링
-        int base_stat = rank switch
+        int baseStat = rank switch
         {
-            ArenaRank.Bronze => 8,
-            ArenaRank.Silver => 15,
-            ArenaRank.Gold => 25,
+            ArenaRank.Bronze   => 8,
+            ArenaRank.Silver   => 15,
+            ArenaRank.Gold     => 25,
             ArenaRank.Platinum => 38,
             ArenaRank.Champion => 55,
-            _ => 10
+            _                  => 10
         };
 
-        // 약간의 랜덤 편차
         unit.rawStats = new CombatBaseStats
         {
-            STR = base_stat + Random.Range(-3, 4),
-            AGI = base_stat + Random.Range(-3, 4),
-            VIT = base_stat + Random.Range(-3, 4),
-            INT = base_stat + Random.Range(-3, 4),
-            GUT = base_stat + Random.Range(-3, 4),
-            SEN = base_stat + Random.Range(-3, 4)
+            STR = baseStat + Random.Range(-3, 4),
+            AGI = baseStat + Random.Range(-3, 4),
+            VIT = baseStat + Random.Range(-3, 4),
+            INT = baseStat + Random.Range(-3, 4),
+            GUT = baseStat + Random.Range(-3, 4),
+            SEN = baseStat + Random.Range(-3, 4)
         };
 
         // 랜덤 유파 부여
         var schools = new[] { SchoolType.Crusher, SchoolType.Ironclad, SchoolType.Agile, SchoolType.Tactician };
-        unit.school = schools[Random.Range(0, schools.Length)];
+        unit.schoolType  = schools[Random.Range(0, schools.Length)];
+        unit.schoolLevel = Mathf.Clamp(rank switch
+        {
+            ArenaRank.Bronze   => 1,
+            ArenaRank.Silver   => 2,
+            ArenaRank.Gold     => 3,
+            ArenaRank.Platinum => 4,
+            ArenaRank.Champion => 5,
+            _                  => 1
+        }, 1, 5);
 
         unit.Recalculate();
         unit.currentHP = unit.derived.MaxHP;
-        unit.currentAV = 10000f / unit.derived.SPD;
+        unit.currentAV = unit.derived.SPD > 0 ? 10000f / unit.derived.SPD : 10000f;
 
         return unit;
     }
 
-    // ===== 스탯 재계산 =====
-
+    // ====================================================
+    //  스탯 재계산
+    // ====================================================
     public void Recalculate()
     {
-        // 원본 복사
+        // 원본 스탯 복사
         effectiveStats = new CombatBaseStats
         {
             STR = rawStats.STR,
@@ -113,7 +136,7 @@ public class CombatUnit
             SEN = rawStats.SEN
         };
 
-        // 버프 적용
+        // 활성 버프 적용
         foreach (var buff in activeBuffs)
         {
             effectiveStats.STR += buff.data.modSTR;
@@ -125,34 +148,40 @@ public class CombatUnit
         }
 
         // 파생 스탯 계산
-        derived.Calculate(effectiveStats);
+        derived.Calculate(effectiveStats, schoolType, schoolLevel);
     }
 
-    // ===== 유파 보정값 =====
-
-    public float GetSchoolDamageBonus()
+    // ====================================================
+    //  유파 전투 보정 (CombatResolver에서 사용)
+    // ====================================================
+    public float GetDamageMultiplier()
     {
-        // 유파 레벨에 따른 데미지 보정 (예시)
-        return school switch
+        float bonus = schoolType switch
         {
-            SchoolType.Crusher => 0.05f * schoolLevel,
-            SchoolType.Ironclad => 0.02f * schoolLevel,
-            SchoolType.Agile => 0.03f * schoolLevel,
-            SchoolType.Tactician => 0.03f * schoolLevel,
-            _ => 0f
+            SchoolType.Crusher    => 0.05f * schoolLevel,
+            SchoolType.Agile      => 0.03f * schoolLevel,
+            SchoolType.Tactician  => 0.03f * schoolLevel,
+            SchoolType.Ironclad   => 0.01f * schoolLevel,
+            _                     => 0f
         };
+        return 1f + bonus;
     }
 
     public float GetCritDamageBonus()
+        => schoolType == SchoolType.Crusher ? 0.10f * schoolLevel : 0f;
+
+    public float GetDefenseMultiplier()
     {
-        return school == SchoolType.Crusher ? 0.1f * schoolLevel : 0f;
+        float bonus = schoolType == SchoolType.Ironclad ? 0.05f * schoolLevel : 0f;
+        return 1f + bonus;
     }
 
-    // ===== 유틸 =====
-
+    // ====================================================
+    //  유틸
+    // ====================================================
     static string GenerateOpponentName(ArenaRank rank)
     {
-        string[] names = { "강철 주먹", "그림자", "불꽃", "빙결", "독사", "폭풍", "번개", "바위" };
+        string[] names  = { "강철 주먹", "그림자", "불꽃", "빙결", "독사", "폭풍", "번개", "바위" };
         string[] titles = { "무명의", "떠도는", "성난", "차가운", "교활한" };
         return $"{titles[Random.Range(0, titles.Length)]} {names[Random.Range(0, names.Length)]}";
     }
