@@ -462,7 +462,7 @@ public class BattlePreparationUI : MonoBehaviour
 
         if (textOpponentSchool)
         {
-            string schoolName = previewOpponent.school == SchoolType.None ? "없음" : GetSchoolName(previewOpponent.school);
+            string schoolName = previewOpponent.schoolType == SchoolType.None ? "없음" : GetSchoolName(previewOpponent.schoolType);
             textOpponentSchool.text = $"유파: {schoolName}";
         }
 
