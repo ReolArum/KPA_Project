@@ -745,13 +745,13 @@ public class BattleSceneController : MonoBehaviour
         s1.animationTrigger = "Attack"; s1.hitAnimationTrigger = "Hit";
 
         var s2 = ScriptableObject.CreateInstance<SkillData>();
-        s2.skillName = "방어자세"; s2.category = SkillCategory.Defense;
-        s2.weight = 30; s2.damageMultiplier = 0.5f; s2.cooldownTurns = 3;
+        s2.skillName = "강타"; s2.category = SkillCategory.Defense;
+        s2.weight = 30; s2.damageMultiplier = 5.5f; s2.cooldownTurns = 5;
         s2.animationTrigger = "Attack_Guard"; s2.hitAnimationTrigger = "Hit";
 
         var s3 = ScriptableObject.CreateInstance<SkillData>();
         s3.skillName = "빠른발놀림"; s3.category = SkillCategory.Mobility;
-        s3.weight = 40; s3.damageMultiplier = 0.8f; s3.avAdvance = 500f; s3.cooldownTurns = 2;
+        s3.weight = 40; s3.damageMultiplier = 2.8f; s3.avAdvance = 500f; s3.cooldownTurns = 3;
         s3.animationTrigger = "Attack_Step"; s3.hitAnimationTrigger = "Hit";
 
         unit.equippedSkills.Add(s1);
