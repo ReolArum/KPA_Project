@@ -66,13 +66,47 @@ public class ATBTimeline
         unit.currentAV = ratio * CalculateBaseAV(newSPD);
     }
 
-    /// <summary>현재 행동 순서 프리뷰 (UI 타임라인 표시용)</summary>
-    public List<(CombatUnit unit, float av)> GetTimeline()
+    /// <summary>
+    /// 미래 N턴 행동 순서 시뮬레이션 (UI 타임라인 표시용)
+    /// 실제 AV를 변경하지 않고 복사본으로 시뮬레이션
+    /// </summary>
+    public List<(CombatUnit unit, float av)> GetTimeline(int count = 5)
     {
-       var result = new List<(CombatUnit unit, float av)>();
+        if (units.Count == 0) return new List<(CombatUnit, float)>();
+
+        // 현재 AV 복사본으로 시뮬레이션
+        var simAV = new Dictionary<CombatUnit, float>();
         foreach (var u in units)
-            result.Add((u, u.currentAV));
-        result.Sort((a, b) => a.av.CompareTo(b.av));
+            simAV[u] = u.currentAV;
+
+        var result = new List<(CombatUnit unit, float av)>();
+
+        for (int i = 0; i < count; i++)
+        {
+            // 가장 AV 낮은 유닛 찾기
+            CombatUnit next = null;
+            float minAV = float.MaxValue;
+            foreach (var u in units)
+            {
+                if (simAV[u] < minAV)
+                {
+                    minAV = simAV[u];
+                    next = u;
+                }
+            }
+            if (next == null) break;
+
+            // 시간 경과 적용
+            float elapsed = simAV[next];
+            foreach (var u in units)
+                simAV[u] -= elapsed;
+
+            // 행동한 유닛 AV 리셋
+            simAV[next] = CalculateBaseAV(next.derived.SPD);
+
+            result.Add((next, elapsed));
+        }
+
         return result;
     }
 }
