@@ -97,8 +97,8 @@ public class GameManager : MonoBehaviour
 
         if (target == State.playerLocation)
         {
-            // 같은 장소 클릭 → 행동권 소모 없이 바로 행동 패널로 진입
-            // (IsDayOver 체크는 이미 위에서 완료)
+            // 행동권이 남아있을 때만 같은 장소 행동 패널로 진입
+            if (State.IsDayOver) return;
             SetPhase(GamePhase.DayPlaceAction);
             return;
         }
@@ -118,11 +118,6 @@ public class GameManager : MonoBehaviour
         // 지도로 돌아갈 때 위치를 None으로 초기화
         // → 어떤 장소를 다시 클릭해도 "재입장"으로 인식해 행동권 소모
         State.playerLocation = MapLocation.None;
-
-        // 버그 수정: 행동권이 이미 소진된 상태에서 BackToMap 시
-        // 지도 버튼이 모두 막혀 진행 불가 상태가 되는 것을 방지
-        if (State.IsDayOver) { TransitionToNight(); return; }
-
         SetPhase(GamePhase.DayMap);
     }
 
@@ -333,8 +328,6 @@ public class GameManager : MonoBehaviour
     // 전투 씬에서 복귀한 후 결과 처리
     void OnBattleFinished(BattleReport report)
     {
-        // Bug-C fix: report가 null이면 기본값 사용 (씬 전환 중 예외 등 방어)
-        if (report == null) report = new BattleReport { playerWon = false };
         State.lastBattleReport = report.ToReportString();
 
         ArenaBattleResult arenaResult;
