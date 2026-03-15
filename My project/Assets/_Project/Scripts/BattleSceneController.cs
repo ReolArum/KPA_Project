@@ -266,15 +266,14 @@ public class BattleSceneController : MonoBehaviour
     {
         if (timeline == null || timelineSlots.Count == 0) return;
 
-        var order        = timeline.GetTimeline();
-        int displayCount = Mathf.Min(timelineSlots.Count, order.Count);
+        var order = timeline.GetTimeline(timelineSlots.Count);
 
         for (int i = 0; i < timelineSlots.Count; i++)
         {
             var slot = timelineSlots[i];
             if (slot == null) continue;
 
-            if (i >= displayCount) { slot.SetActive(false); continue; }
+            if (i >= order.Count) { slot.SetActive(false); continue; }
             slot.SetActive(true);
 
             var (unit, av) = order[i];
@@ -289,11 +288,7 @@ public class BattleSceneController : MonoBehaviour
 
             var avText = slot.transform.Find("AVText")?.GetComponent<TMP_Text>();
             if (avText != null)
-            {
-                float maxAV  = playerUnit.derived.SPD > 0 ? 10000f / playerUnit.derived.SPD : 10000f;
-                float ratio  = Mathf.Clamp01(av / (maxAV * 1.5f));
-                avText.text  = i == 0 ? ">>" : Mathf.RoundToInt(ratio * 100f).ToString();
-            }
+                avText.text = i == 0 ? ">>" : "";
 
             var bg = slot.GetComponent<Image>();
             if (bg != null)
