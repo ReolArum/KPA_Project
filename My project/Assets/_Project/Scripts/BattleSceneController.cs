@@ -523,7 +523,9 @@ public class BattleSceneController : MonoBehaviour
         DamageResult dmgResult = resolver.Resolve(attacker, defender, skill);
         report.LogAction(attacker, skill, dmgResult, turnCount, isPlayerTurn);
 
-        Transform defenderWorldTr = isPlayerTurn ? opponentTransform : playerTransform;
+        // 피격자 Transform: AttackSequence 파라미터의 defenderTr 우선 사용
+        // null이면 Inspector 연결된 Transform으로 fallback
+        Transform defenderWorldTr = defenderTr ?? (isPlayerTurn ? opponentTransform : playerTransform);
 
         string logMsg;
         switch (dmgResult.outcome)
@@ -634,7 +636,7 @@ public class BattleSceneController : MonoBehaviour
         else
         {
             // 3D Transform 없음: 플레이어(좌측 하단), 상대(우측 상단) 고정 위치
-            bool defIsOpponent = (defenderTr == opponentTransform);
+            bool defIsOpponent = (defenderTr == opponentTransform) || (opponentTransform == null && defenderTr != playerTransform);
             startAnchor = defIsOpponent
                 ? new Vector3(320f,  180f, 0f)   // 상대: 우측 상단
                 : new Vector3(-320f, -180f, 0f); // 플레이어: 좌측 하단
