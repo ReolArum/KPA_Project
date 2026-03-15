@@ -160,14 +160,18 @@ public class BattleSceneController : MonoBehaviour
     // ====================================================
     void Start()
     {
+        // BattleSceneData가 없으면 (씬 직접 실행 등) 더미 유닛으로 테스트 모드 진입
         if (BattleSceneData.playerUnit == null || BattleSceneData.opponentUnit == null)
         {
-            Debug.LogError("[BattleScene] 전투 데이터 없음! 메인 씬에서 시작하세요.");
-            return;
+            Debug.LogWarning("[BattleScene] 전투 데이터 없음 → 더미 유닛으로 테스트 모드 시작");
+            playerUnit   = MakeDummyPlayer();
+            opponentUnit = CombatUnit.CreateOpponent(ArenaRank.Silver, 1);
         }
-
-        playerUnit   = BattleSceneData.playerUnit;
-        opponentUnit = BattleSceneData.opponentUnit;
+        else
+        {
+            playerUnit   = BattleSceneData.playerUnit;
+            opponentUnit = BattleSceneData.opponentUnit;
+        }
 
         if (playerUnit.equippedSkills  == null || playerUnit.equippedSkills.Count  == 0) AssignDefaultSkills(playerUnit);
         if (opponentUnit.equippedSkills == null || opponentUnit.equippedSkills.Count == 0) AssignDefaultSkills(opponentUnit);
@@ -811,9 +815,17 @@ public class BattleSceneController : MonoBehaviour
         CombatUnit attacker, CombatUnit defender,
         SkillData skill, bool isPlayerTurn)
     {
+        // 3D Transform이 없으면 이동 연출 건너뜀 (테스트 모드)
+        bool has3D = attackerTr != null && defenderTr != null;
+
         if (attackerAnim) attackerAnim.speed = 1;
-        Vector3 targetPos = Vector3.Lerp(attackerTr.position, defenderTr.position, 0.75f);
-        yield return StartCoroutine(MoveToPosition(attackerTr, targetPos, attackMoveSpeed));
+        if (has3D)
+        {
+            Vector3 targetPos = Vector3.Lerp(attackerTr.position, defenderTr.position, 0.75f);
+            yield return StartCoroutine(MoveToPosition(attackerTr, targetPos, attackMoveSpeed));
+        }
+        else
+            yield return new WaitForSeconds(0.15f);
 
         if (attackerAnim) attackerAnim.SetTrigger("Attack");
 
@@ -894,7 +906,8 @@ public class BattleSceneController : MonoBehaviour
             { w += Time.deltaTime; yield return null; }
         }
 
-        yield return StartCoroutine(MoveToPosition(attackerTr, startPos, attackMoveSpeed * 1.2f));
+        if (has3D)
+            yield return StartCoroutine(MoveToPosition(attackerTr, startPos, attackMoveSpeed * 1.2f));
         if (attackerAnim) attackerAnim.speed = 0;
         if (defenderAnim) defenderAnim.speed = 0;
 
@@ -911,7 +924,7 @@ public class BattleSceneController : MonoBehaviour
     /// </summary>
     void SpawnDamagePopup(Transform defenderTr, string text, Color color, float sizeScale = 1f)
     {
-        if (battleCanvas == null || defenderTr == null) return;
+        if (battleCanvas == null) return;
         StartCoroutine(DamagePopupRoutine(defenderTr, text, color, sizeScale));
     }
 
@@ -948,12 +961,24 @@ public class BattleSceneController : MonoBehaviour
         tmp.fontSize = Mathf.RoundToInt(tmp.fontSize * sizeScale);
 
         // ── 초기 위치: 피격 유닛 머리 근처(월드 → 스크린 → Canvas 좌표) ──
+        // 3D Transform 없으면 Canvas 중앙 상단/하단으로 fallback
         RectTransform rt = popupGo.GetComponent<RectTransform>();
         if (rt == null) rt = popupGo.AddComponent<RectTransform>();
         rt.sizeDelta = new Vector2(300f, 100f);
 
-        Vector3 worldPos = defenderTr.position + Vector3.up * 1.8f;
-        Vector3 startAnchor = WorldToCanvasPos(worldPos);
+        Vector3 startAnchor;
+        if (defenderTr != null)
+        {
+            Vector3 worldPos = defenderTr.position + Vector3.up * 1.8f;
+            startAnchor = WorldToCanvasPos(worldPos);
+        }
+        else
+        {
+            // 3D 없음: 피격 측 HP바 근처 고정 위치 사용
+            bool defIsPlayer = (defenderTr == (opponentTransform != null ? opponentTransform : null));
+            // opponentTransform=null인 경우 isPlayer 판별 불가 → Canvas 중앙 위/아래 사용
+            startAnchor = new Vector3(Random.Range(-80f, 80f), defIsPlayer ? -260f : 260f, 0f);
+        }
         rt.anchoredPosition = startAnchor;
 
         // ── 랜덤 가로 흔들림 (같은 위치에 여러 개 뜰 때 겹침 방지) ──
@@ -1107,6 +1132,22 @@ public class BattleSceneController : MonoBehaviour
             Canvas.ForceUpdateCanvases();
             scrollLog.verticalNormalizedPosition = 0f;
         }
+    }
+
+    // ====================================================
+    //  더미 플레이어 유닛 생성 (테스트 모드용)
+    // ====================================================
+    private static CombatUnit MakeDummyPlayer()
+    {
+        var u = new CombatUnit();
+        u.unitName    = "내 클론";
+        u.rawStats    = new CombatBaseStats { STR=20, AGI=15, VIT=15, INT=5, GUT=5, SEN=10 };
+        u.schoolType  = SchoolType.Crusher;
+        u.schoolLevel = 1;
+        u.Recalculate();
+        u.currentHP = u.derived.MaxHP;
+        u.currentAV = u.derived.SPD > 0 ? 10000f / u.derived.SPD : 10000f;
+        return u;
     }
 
     // ====================================================
