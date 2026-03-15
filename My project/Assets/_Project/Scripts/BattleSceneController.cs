@@ -91,15 +91,18 @@ public class BattleSceneController : MonoBehaviour
     // ====================================================
     void Start()
     {
-        // 전투 데이터 검증
+        // 전투 데이터 검증 (없으면 더미 유닛으로 테스트 모드)
         if (BattleSceneData.playerUnit == null || BattleSceneData.opponentUnit == null)
         {
-            Debug.LogError("[BattleScene] 전투 데이터 없음! 메인 씬에서 시작하세요.");
-            return;
+            Debug.LogWarning("[BattleScene] 전투 데이터 없음 → 더미 유닛으로 테스트 모드 시작");
+            playerUnit   = MakeDummyPlayer();
+            opponentUnit = CombatUnit.CreateOpponent(ArenaRank.Silver, 1);
         }
-
-        playerUnit   = BattleSceneData.playerUnit;
-        opponentUnit = BattleSceneData.opponentUnit;
+        else
+        {
+            playerUnit   = BattleSceneData.playerUnit;
+            opponentUnit = BattleSceneData.opponentUnit;
+        }
 
         // 스킬이 비어있으면 기본 스킬 부여
         if (playerUnit.equippedSkills  == null || playerUnit.equippedSkills.Count  == 0) AssignDefaultSkills(playerUnit);
@@ -439,6 +442,22 @@ public class BattleSceneController : MonoBehaviour
             Canvas.ForceUpdateCanvases();
             scrollLog.verticalNormalizedPosition = 0f;
         }
+    }
+
+    // ====================================================
+    //  더미 플레이어 유닛 (테스트 모드용)
+    // ====================================================
+    private static CombatUnit MakeDummyPlayer()
+    {
+        var u = new CombatUnit();
+        u.unitName    = "내 클론";
+        u.rawStats    = new CombatBaseStats { STR = 20, AGI = 15, VIT = 15, INT = 5, GUT = 5, SEN = 10 };
+        u.schoolType  = SchoolType.Crusher;
+        u.schoolLevel = 1;
+        u.Recalculate();
+        u.currentHP = u.derived.MaxHP;
+        u.currentAV = u.derived.SPD > 0 ? 10000f / u.derived.SPD : 10000f;
+        return u;
     }
 
     // ====================================================
