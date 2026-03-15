@@ -129,6 +129,7 @@ public class BattleSceneController : MonoBehaviour
     private bool            isPaused         = false;
     private int             turnCount        = 0;
     private string          logBuffer        = "";
+    private bool            autoUIBuilt      = false;  // AutoBuildUI 실행 여부
 
     private Vector3 playerStartPos;
     private Vector3 opponentStartPos;
@@ -187,6 +188,9 @@ public class BattleSceneController : MonoBehaviour
 
         mainCam = Camera.main;
 
+        // Inspector에 Canvas가 연결되지 않은 경우 자동 생성
+        if (battleCanvas == null) { AutoBuildUI(); autoUIBuilt = true; }
+
         // UI 구성
         SetupButtons();
         BuildTimelineSlots();
@@ -202,10 +206,297 @@ public class BattleSceneController : MonoBehaviour
     }
 
     // ====================================================
-    //  버튼 세팅
+    //  UI 자동 생성 (Inspector 미연결 시 폴백)
+    // ====================================================
+    void AutoBuildUI()
+    {
+        // ── Canvas ──────────────────────────────────────────────
+        var cvsGo = new GameObject("BattleCanvas_Auto");
+        var cvs   = cvsGo.AddComponent<Canvas>();
+        cvs.renderMode   = RenderMode.ScreenSpaceOverlay;
+        cvs.sortingOrder = 50;
+        var scaler = cvsGo.AddComponent<CanvasScaler>();
+        scaler.uiScaleMode         = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1920, 1080);
+        scaler.screenMatchMode     = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+        scaler.matchWidthOrHeight  = 0.5f;
+        cvsGo.AddComponent<GraphicRaycaster>();
+        battleCanvas = cvs;
+
+        var cRect = cvsGo.GetComponent<RectTransform>();
+
+        // ── 공통 헬퍼 ───────────────────────────────────────────
+        RectTransform Anc(GameObject go, Vector2 aMin, Vector2 aMax, Vector2 o0, Vector2 o1)
+        {
+            var r = go.GetComponent<RectTransform>() ?? go.AddComponent<RectTransform>();
+            r.anchorMin = aMin; r.anchorMax = aMax;
+            r.offsetMin = o0;   r.offsetMax = o1;
+            return r;
+        }
+        GameObject Pnl(string nm, Transform p, Color c, Vector2 aMin, Vector2 aMax, Vector2 o0, Vector2 o1)
+        {
+            var go = new GameObject(nm); go.transform.SetParent(p, false);
+            go.AddComponent<Image>().color = c;
+            Anc(go, aMin, aMax, o0, o1); return go;
+        }
+        TMP_Text Txt(string nm, Transform p, string txt, float sz, Color col, TextAlignmentOptions al,
+                     Vector2 aMin, Vector2 aMax, Vector2 o0, Vector2 o1)
+        {
+            var go = new GameObject(nm); go.transform.SetParent(p, false);
+            var t  = go.AddComponent<TextMeshProUGUI>();
+            t.text = txt; t.fontSize = sz; t.color = col; t.alignment = al;
+            Anc(go, aMin, aMax, o0, o1); return t;
+        }
+        Button Btn(string lbl, Transform p, Color bg, Vector2 aMin, Vector2 aMax, Vector2 o0, Vector2 o1, System.Action cb)
+        {
+            var go = new GameObject("Btn_" + lbl); go.transform.SetParent(p, false);
+            go.AddComponent<Image>().color = bg;
+            var btn = go.AddComponent<Button>(); btn.onClick.AddListener(() => cb());
+            Anc(go, aMin, aMax, o0, o1);
+            Txt(lbl, go.transform, lbl, 22, Color.white, TextAlignmentOptions.Center,
+                Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            return btn;
+        }
+        Slider MkSlider(string nm, Transform p, Color fillCol, Vector2 aMin, Vector2 aMax, Vector2 o0, Vector2 o1)
+        {
+            var go = new GameObject(nm); go.transform.SetParent(p, false);
+            Anc(go, aMin, aMax, o0, o1);
+            var bg = new GameObject("BG"); bg.transform.SetParent(go.transform, false);
+            bg.AddComponent<Image>().color = new Color(0.08f, 0.08f, 0.08f);
+            Anc(bg, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            var fa = new GameObject("FillArea"); fa.transform.SetParent(go.transform, false);
+            Anc(fa, Vector2.zero, Vector2.one, new Vector2(4, 0), new Vector2(-4, 0));
+            var fill = new GameObject("Fill"); fill.transform.SetParent(fa.transform, false);
+            var fillImg = fill.AddComponent<Image>(); fillImg.color = fillCol;
+            Anc(fill, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            var sl = go.AddComponent<Slider>();
+            sl.fillRect = fill.GetComponent<RectTransform>();
+            sl.direction = Slider.Direction.LeftToRight; sl.value = 1f;
+            return sl;
+        }
+
+        Color BG   = new Color(0.10f, 0.10f, 0.15f, 0.92f);
+        Color DARK = new Color(0.13f, 0.13f, 0.18f, 1f);
+        Color GRN  = new Color(0.20f, 0.85f, 0.30f);
+        Color YLW  = new Color(1.00f, 0.85f, 0.15f);
+        Color RED  = new Color(0.90f, 0.15f, 0.15f);
+
+        // ════════════════════════════════════════════
+        //  상대 HP (상단)
+        // ════════════════════════════════════════════
+        var oppHpPnl = Pnl("OppHP", cvsGo.transform, BG,
+            new Vector2(0.25f, 1f), new Vector2(0.75f, 1f),
+            new Vector2(0, -110), new Vector2(0, -4));
+        textOpponentName = Txt("OppName", oppHpPnl.transform,
+            opponentUnit?.unitName ?? "상대", 28, Color.white, TextAlignmentOptions.Left,
+            Vector2.zero, Vector2.one, new Vector2(10, -4), new Vector2(-10, -44));
+        sliderOpponentHP = MkSlider("OppSlider", oppHpPnl.transform, GRN,
+            new Vector2(0,0), new Vector2(1,1), new Vector2(8,8), new Vector2(-8,-50));
+        fillOpponentHP = sliderOpponentHP.fillRect.GetComponent<Image>();
+        textOpponentHP = Txt("OppHPTxt", oppHpPnl.transform,
+            "", 20, Color.white, TextAlignmentOptions.Right,
+            Vector2.zero, Vector2.one, new Vector2(0,6), new Vector2(-10,-50));
+
+        // ════════════════════════════════════════════
+        //  플레이어 HP (하단)
+        // ════════════════════════════════════════════
+        var plyHpPnl = Pnl("PlyHP", cvsGo.transform, BG,
+            new Vector2(0.25f, 0f), new Vector2(0.75f, 0f),
+            new Vector2(0, 4), new Vector2(0, 110));
+        textPlayerName = Txt("PlyName", plyHpPnl.transform,
+            playerUnit?.unitName ?? "플레이어", 28, Color.white, TextAlignmentOptions.Left,
+            Vector2.zero, Vector2.one, new Vector2(10, -4), new Vector2(-10, -44));
+        sliderPlayerHP = MkSlider("PlySlider", plyHpPnl.transform, GRN,
+            new Vector2(0,0), new Vector2(1,1), new Vector2(8,8), new Vector2(-8,-50));
+        fillPlayerHP = sliderPlayerHP.fillRect.GetComponent<Image>();
+        textPlayerHP = Txt("PlyHPTxt", plyHpPnl.transform,
+            "", 20, Color.white, TextAlignmentOptions.Right,
+            Vector2.zero, Vector2.one, new Vector2(0,6), new Vector2(-10,-50));
+
+        // ════════════════════════════════════════════
+        //  ATB 행동 서열바 (좌측 세로)
+        // ════════════════════════════════════════════
+        var tlRoot = new GameObject("TimelineRoot"); tlRoot.transform.SetParent(cvsGo.transform, false);
+        Anc(tlRoot, Vector2.zero, new Vector2(0,1), new Vector2(4,120), new Vector2(144,-120));
+        var tlLayout = tlRoot.AddComponent<VerticalLayoutGroup>();
+        tlLayout.spacing = 4; tlLayout.childForceExpandHeight = false; tlLayout.childForceExpandWidth = true;
+        tlLayout.childAlignment = TextAnchor.UpperCenter;
+        tlLayout.padding = new RectOffset(4,4,4,4);
+        tlRoot.AddComponent<Image>().color = new Color(0.08f,0.08f,0.12f,0.95f);
+        timelineRoot = tlRoot.transform;
+
+        // 슬롯 프리팹 대신 인라인 생성용 임시 프리팹
+        var tlPrefab = new GameObject("TL_SlotPrefab");
+        tlPrefab.SetActive(false);
+        var tlSlotImg = tlPrefab.AddComponent<Image>(); tlSlotImg.color = DARK;
+        var tlSlotRect = tlPrefab.GetComponent<RectTransform>();
+        tlSlotRect.sizeDelta = new Vector2(130, 76);
+        var tlSlotLayout = tlPrefab.AddComponent<HorizontalLayoutGroup>();
+        tlSlotLayout.childForceExpandWidth = false; tlSlotLayout.childAlignment = TextAnchor.MiddleCenter;
+        tlSlotLayout.spacing = 4; tlSlotLayout.padding = new RectOffset(6,6,6,6);
+
+        var tlIco = new GameObject("Icon"); tlIco.transform.SetParent(tlPrefab.transform, false);
+        var tlIcoImg = tlIco.AddComponent<Image>(); tlIcoImg.color = new Color(0.5f,0.7f,1f);
+        tlIco.GetComponent<RectTransform>().sizeDelta = new Vector2(50,50);
+        tlIco.AddComponent<LayoutElement>().preferredWidth = 50;
+
+        var tlAV = new GameObject("AVText"); tlAV.transform.SetParent(tlPrefab.transform, false);
+        var tlAVtmp = tlAV.AddComponent<TextMeshProUGUI>();
+        tlAVtmp.text = "--"; tlAVtmp.fontSize = 22; tlAVtmp.color = Color.white;
+        tlAVtmp.alignment = TextAlignmentOptions.Center;
+        tlAV.AddComponent<LayoutElement>().preferredWidth = 44;
+
+        timelineSlotPrefab = tlPrefab;
+
+        // ════════════════════════════════════════════
+        //  방침 버튼 (우측)
+        // ════════════════════════════════════════════
+        var dirPnl = Pnl("DirectivePanel", cvsGo.transform, new Color(0.08f,0.08f,0.12f,0.95f),
+            new Vector2(1,0), Vector2.one,
+            new Vector2(-180, 130), new Vector2(-4, -130));
+        var dirLayout = dirPnl.AddComponent<VerticalLayoutGroup>();
+        dirLayout.spacing = 6; dirLayout.childForceExpandHeight = false;
+        dirLayout.childAlignment = TextAnchor.UpperCenter;
+        dirLayout.padding = new RectOffset(8,8,8,8);
+        dirPnl.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+        textDirectiveLabel = Txt("DirLabel", dirPnl.transform,
+            "◆ 평소대로", 20, YLW, TextAlignmentOptions.Center,
+            Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+        textDirectiveLabel.gameObject.AddComponent<LayoutElement>().preferredHeight = 32;
+
+        Button MkDirBtn(string lbl, BattleDirective d)
+        {
+            var go = new GameObject("DirBtn_" + lbl); go.transform.SetParent(dirPnl.transform, false);
+            go.AddComponent<Image>().color = new Color(0.22f, 0.22f, 0.28f);
+            var btn = go.AddComponent<Button>();
+            var le  = go.AddComponent<LayoutElement>(); le.preferredHeight = 44; le.preferredWidth = 160;
+            BattleDirective captured = d;
+            btn.onClick.AddListener(() => SetDirective(captured));
+            Txt(lbl, go.transform, lbl, 22, Color.white, TextAlignmentOptions.Center,
+                Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            return btn;
+        }
+        btnAggressive = MkDirBtn("밀어붙여", BattleDirective.Aggressive);
+        btnNormal     = MkDirBtn("평소대로", BattleDirective.Normal);
+        btnDefensive  = MkDirBtn("버텨",     BattleDirective.Defensive);
+        btnTechnical  = MkDirBtn("기술위주", BattleDirective.Technical);
+
+        btnPause = Btn("일시정지", dirPnl.transform, new Color(0.3f,0.3f,0.4f),
+            Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero, TogglePause);
+        btnPause.gameObject.AddComponent<LayoutElement>().preferredHeight = 44;
+
+        // ════════════════════════════════════════════
+        //  스킬 쿨타임 바 (하단 중앙)
+        // ════════════════════════════════════════════
+        var skillPnl = Pnl("SkillBarRoot", cvsGo.transform, new Color(0.08f,0.08f,0.12f,0.95f),
+            new Vector2(0.15f,0), new Vector2(0.85f,0),
+            new Vector2(0,4), new Vector2(0,114));
+        var skillLayout = skillPnl.AddComponent<HorizontalLayoutGroup>();
+        skillLayout.spacing = 8; skillLayout.childForceExpandWidth = false;
+        skillLayout.childAlignment = TextAnchor.MiddleCenter;
+        skillLayout.padding = new RectOffset(10,10,8,8);
+        skillBarRoot = skillPnl.transform;
+
+        // 스킬 슬롯 프리팹
+        var skillPrefab = new GameObject("SkillSlot_Prefab"); skillPrefab.SetActive(false);
+        skillPrefab.AddComponent<Image>().color = DARK;
+        skillPrefab.AddComponent<LayoutElement>().preferredWidth  = 130;
+        skillPrefab.GetComponent<LayoutElement>().preferredHeight = 96;
+
+        var skIco = new GameObject("Icon"); skIco.transform.SetParent(skillPrefab.transform, false);
+        skIco.AddComponent<Image>().color = new Color(0.3f,0.5f,0.8f);
+        Anc(skIco, new Vector2(0,0.5f), new Vector2(0,0.5f), new Vector2(6,-22), new Vector2(50,22));
+
+        var skNm = new GameObject("NameText"); skNm.transform.SetParent(skillPrefab.transform, false);
+        var skNmTmp = skNm.AddComponent<TextMeshProUGUI>();
+        skNmTmp.text = "스킬"; skNmTmp.fontSize = 17; skNmTmp.color = Color.white;
+        skNmTmp.alignment = TextAlignmentOptions.Center;
+        Anc(skNm, new Vector2(0,0.5f), Vector2.one, new Vector2(4,4), new Vector2(-4,-4));
+
+        var skCd = new GameObject("CooldownText"); skCd.transform.SetParent(skillPrefab.transform, false);
+        var skCdTmp = skCd.AddComponent<TextMeshProUGUI>();
+        skCdTmp.text = "준비"; skCdTmp.fontSize = 15; skCdTmp.color = GRN;
+        skCdTmp.alignment = TextAlignmentOptions.Center;
+        Anc(skCd, Vector2.zero, new Vector2(1,0.4f), new Vector2(4,4), new Vector2(-4,-2));
+
+        var skSl = new GameObject("CooldownSlider"); skSl.transform.SetParent(skillPrefab.transform, false);
+        Anc(skSl, Vector2.zero, new Vector2(1,0), new Vector2(6,4), new Vector2(-6,18));
+        var skSlBg = new GameObject("BG"); skSlBg.transform.SetParent(skSl.transform, false);
+        skSlBg.AddComponent<Image>().color = new Color(0.1f,0.1f,0.1f);
+        Anc(skSlBg, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+        var skSlFa = new GameObject("FillArea"); skSlFa.transform.SetParent(skSl.transform, false);
+        Anc(skSlFa, Vector2.zero, Vector2.one, new Vector2(2,0), new Vector2(-2,0));
+        var skSlFill = new GameObject("Fill"); skSlFill.transform.SetParent(skSlFa.transform, false);
+        var skSlFillImg = skSlFill.AddComponent<Image>(); skSlFillImg.color = YLW;
+        Anc(skSlFill, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+        var skSlComp = skSl.AddComponent<Slider>();
+        skSlComp.fillRect = skSlFill.GetComponent<RectTransform>();
+        skSlComp.direction = Slider.Direction.LeftToRight; skSlComp.value = 1f;
+
+        var skOv = new GameObject("Overlay"); skOv.transform.SetParent(skillPrefab.transform, false);
+        skOv.AddComponent<Image>().color = new Color(0,0,0,0.55f);
+        Anc(skOv, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+        skOv.SetActive(false);
+
+        skillBarSlotPrefab = skillPrefab;
+
+        // ════════════════════════════════════════════
+        //  전투 로그 (화면 하단 중앙)
+        // ════════════════════════════════════════════
+        var logPnl = Pnl("BattleLog", cvsGo.transform, new Color(0,0,0,0.70f),
+            new Vector2(0.15f,0), new Vector2(0.85f,0),
+            new Vector2(0,118), new Vector2(0,340));
+
+        var viewport = new GameObject("Viewport"); viewport.transform.SetParent(logPnl.transform, false);
+        viewport.AddComponent<Image>().color = Color.clear;
+        viewport.AddComponent<Mask>().showMaskGraphic = false;
+        Anc(viewport, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+
+        var logContent = new GameObject("Content"); logContent.transform.SetParent(viewport.transform, false);
+        textBattleLog = logContent.AddComponent<TextMeshProUGUI>();
+        textBattleLog.fontSize = 17; textBattleLog.color = Color.white;
+        textBattleLog.alignment = TextAlignmentOptions.BottomLeft;
+        textBattleLog.textWrappingMode = TextWrappingModes.Normal;
+        var logContentRect = logContent.GetComponent<RectTransform>();
+        logContentRect.anchorMin = Vector2.zero; logContentRect.anchorMax = Vector2.one;
+        logContentRect.offsetMin = new Vector2(8,4); logContentRect.offsetMax = new Vector2(-8,-4);
+        logContent.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+        scrollLog = logPnl.AddComponent<ScrollRect>();
+        scrollLog.viewport  = viewport.GetComponent<RectTransform>();
+        scrollLog.content   = logContentRect;
+        scrollLog.horizontal = false;
+
+        // ════════════════════════════════════════════
+        //  결과 패널
+        // ════════════════════════════════════════════
+        panelResult = Pnl("ResultPanel", cvsGo.transform, new Color(0,0,0,0.88f),
+            new Vector2(0.2f,0.1f), new Vector2(0.8f,0.9f),
+            Vector2.zero, Vector2.zero);
+        panelResult.SetActive(false);
+
+        textResult = Txt("ResultTxt", panelResult.transform,
+            "", 19, Color.white, TextAlignmentOptions.TopLeft,
+            Vector2.zero, Vector2.one, new Vector2(20,60), new Vector2(-20,-20));
+        textResult.textWrappingMode = TextWrappingModes.Normal;
+
+        btnCloseResult = Btn("닫기", panelResult.transform, RED,
+            new Vector2(0.35f,0), new Vector2(0.65f,0),
+            new Vector2(0,10), new Vector2(0,52),
+            () => panelResult.SetActive(false));
+
+        Debug.Log("[BattleScene] UI 자동 생성 완료");
+    }
+
+    // ====================================================
+    //  버튼 세팅 (AutoBuildUI를 사용하지 않고 Inspector에서 연결한 경우에만 실행)
     // ====================================================
     void SetupButtons()
     {
+        // AutoBuildUI가 실행된 경우 버튼 리스너는 이미 등록되어 있으므로 건너뜀
+        if (autoUIBuilt) return;
+
         if (btnAggressive) btnAggressive.onClick.AddListener(() => SetDirective(BattleDirective.Aggressive));
         if (btnNormal)     btnNormal.onClick.AddListener(()     => SetDirective(BattleDirective.Normal));
         if (btnDefensive)  btnDefensive.onClick.AddListener(()  => SetDirective(BattleDirective.Defensive));
