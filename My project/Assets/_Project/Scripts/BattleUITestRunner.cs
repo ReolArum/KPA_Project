@@ -682,8 +682,6 @@ public class BattleUITestRunner : MonoBehaviour
             var le = go.AddComponent<LayoutElement>();
             le.preferredWidth = 130; le.preferredHeight = 100;
 
-            var inner = new VerticalLayoutGroup();
-
             // 스킬 이름
             var nmTxt = Txt("Name", go.transform, skill.skillName, 18,
                 Color.white, TextAlignmentOptions.Center,
@@ -735,7 +733,7 @@ public class BattleUITestRunner : MonoBehaviour
         textLog = content.AddComponent<TextMeshProUGUI>();
         textLog.fontSize = 18; textLog.color = Color.white;
         textLog.alignment = TextAlignmentOptions.BottomLeft;
-        textLog.enableWordWrapping = true;
+        textLog.textWrappingMode = TextWrappingModes.Normal;
         var contentRect = content.GetComponent<RectTransform>();
         contentRect.anchorMin = new Vector2(0,0); contentRect.anchorMax = new Vector2(1,1);
         contentRect.offsetMin = new Vector2(8,4); contentRect.offsetMax = new Vector2(-8,-4);
@@ -758,11 +756,11 @@ public class BattleUITestRunner : MonoBehaviour
         textResult = Txt("ResultTxt", panelResult.transform,
             "", 20, Color.white, TextAlignmentOptions.TopLeft,
             Vector2.zero, Vector2.one, new Vector2(20,60), new Vector2(-20,-20));
-        textResult.enableWordWrapping = true;
+        textResult.textWrappingMode = TextWrappingModes.Normal;
 
         btnClose = Btn("닫기", panelResult.transform, C_RED,
             new Vector2(0.35f,0), new Vector2(0.65f,0),
-            new Vector2(0,10), new Vector2(0,55));
-        btnClose.onClick.AddListener(() => panelResult.SetActive(false));
+            new Vector2(0,10), new Vector2(0,55),
+            () => panelResult.SetActive(false));
     }
 }
