@@ -256,24 +256,31 @@ public class BattleSceneController : MonoBehaviour
         CombatUnit attacker, CombatUnit defender,
         SkillData skill, bool isPlayerTurn)
     {
-        // 1. 공격자 애니메이션 활성화 & 돌진
+        // 스킬별 트리거 이름 (비어있으면 기본값 사용)
+        string atkTrigger = !string.IsNullOrEmpty(skill.animationTrigger)    ? skill.animationTrigger    : "Attack";
+        string hitTrigger = !string.IsNullOrEmpty(skill.hitAnimationTrigger) ? skill.hitAnimationTrigger : "Hit";
+
+        // 1. 공격자 이동 (startPos 기준으로 targetPos 계산 → 복귀 위치 오차 방지)
         if (attackerAnim) attackerAnim.speed = 1;
-        Vector3 targetPos = Vector3.Lerp(attackerTr.position, defenderTr.position, 0.75f);
+        Vector3 targetPos = Vector3.Lerp(startPos, defenderTr.position, 0.75f);
         yield return StartCoroutine(MoveToPosition(attackerTr, targetPos, attackMoveSpeed));
 
-        // 2. 공격 트리거
-        if (attackerAnim) attackerAnim.SetTrigger("Attack");
+        // 2. 공격 트리거 발동
+        if (attackerAnim) attackerAnim.SetTrigger(atkTrigger);
 
-        // 3. Attack 상태 진입 대기 (Animator null-safe)
+        // 3. 공격 애니메이션 진입 대기 (타임아웃 1초)
         if (attackerAnim != null)
         {
-            yield return null;
-            yield return new WaitUntil(() =>
-                attackerAnim.GetCurrentAnimatorStateInfo(0).IsName("Attack"));
+            float w = 0f;
+            yield return null;  // 트리거 처리 1프레임 대기
+            while (!attackerAnim.GetCurrentAnimatorStateInfo(0).IsName(atkTrigger) && w < 1f)
+            { w += Time.deltaTime; yield return null; }
 
-            // 4. 타격 타이밍 (40%)
-            yield return new WaitUntil(() =>
-                attackerAnim.GetCurrentAnimatorStateInfo(0).normalizedTime >= 0.4f);
+            // 4. 타격 타이밍 (애니메이션 40% 지점, 타임아웃 2초)
+            w = 0f;
+            while (attackerAnim.GetCurrentAnimatorStateInfo(0).IsName(atkTrigger) &&
+                   attackerAnim.GetCurrentAnimatorStateInfo(0).normalizedTime < 0.4f && w < 2f)
+            { w += Time.deltaTime; yield return null; }
         }
         else
         {
@@ -291,7 +298,7 @@ public class BattleSceneController : MonoBehaviour
             case HitOutcome.Hit:
             case HitOutcome.Critical:
                 defender.currentHP = Mathf.Max(0, defender.currentHP - dmgResult.finalDamage);
-                if (defenderAnim) { defenderAnim.speed = 1; defenderAnim.SetTrigger("Hit"); }
+                if (defenderAnim) { defenderAnim.speed = 1; defenderAnim.SetTrigger(hitTrigger); }
                 if (skill.avAdvance > 0) timeline.AdvanceUnit(attacker, skill.avAdvance);
                 if (skill.avDelay   > 0) timeline.DelayUnit(defender, skill.avDelay);
                 if (skill.appliedBuff   != null) buffSystem.ApplyBuff(attacker, skill.appliedBuff);
@@ -312,23 +319,25 @@ public class BattleSceneController : MonoBehaviour
         }
         AppendLog(logMsg);
 
-        // 7. 공격 애니메이션 종료 대기
+        // 7. 공격 애니메이션 종료 대기 (타임아웃 2초)
         if (attackerAnim != null)
         {
-            yield return new WaitUntil(() =>
-                attackerAnim.GetCurrentAnimatorStateInfo(0).normalizedTime >= 0.85f ||
-                !attackerAnim.GetCurrentAnimatorStateInfo(0).IsName("Attack"));
+            float w = 0f;
+            while (attackerAnim.GetCurrentAnimatorStateInfo(0).IsName(atkTrigger) &&
+                   attackerAnim.GetCurrentAnimatorStateInfo(0).normalizedTime < 0.85f && w < 2f)
+            { w += Time.deltaTime; yield return null; }
         }
 
-        // 8. 피격 애니메이션 종료 대기
-        if (defenderAnim != null && defenderAnim.GetCurrentAnimatorStateInfo(0).IsName("Hit"))
+        // 8. 피격 애니메이션 종료 대기 (타임아웃 1.5초)
+        if (defenderAnim != null && defenderAnim.GetCurrentAnimatorStateInfo(0).IsName(hitTrigger))
         {
-            yield return new WaitUntil(() =>
-                defenderAnim.GetCurrentAnimatorStateInfo(0).normalizedTime >= 0.85f ||
-                !defenderAnim.GetCurrentAnimatorStateInfo(0).IsName("Hit"));
+            float w = 0f;
+            while (defenderAnim.GetCurrentAnimatorStateInfo(0).IsName(hitTrigger) &&
+                   defenderAnim.GetCurrentAnimatorStateInfo(0).normalizedTime < 0.85f && w < 1.5f)
+            { w += Time.deltaTime; yield return null; }
         }
 
-        // 9. 복귀 & 정지
+        // 9. 원래 자리로 복귀 & 정지
         yield return StartCoroutine(MoveToPosition(attackerTr, startPos, attackMoveSpeed * 1.2f));
         if (attackerAnim) attackerAnim.speed = 0;
         if (defenderAnim) defenderAnim.speed = 0;
