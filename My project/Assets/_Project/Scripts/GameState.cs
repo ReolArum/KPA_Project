@@ -28,7 +28,7 @@ public class GameState
 
     // ===== 플레이어 =====
     public int playerActionsUsed = 0;
-    public MapLocation playerLocation = MapLocation.Home;
+    public MapLocation playerLocation = MapLocation.None;  // 초기/복귀 시 None, 이동 시에만 값 세팅
 
     // ===== 밤 =====
     public NightActionType nightChoice = NightActionType.Rest;
@@ -96,8 +96,14 @@ public class GameState
     }
 
     // ===== 숙련도 접근 =====
-    public Proficiency GetProf(ProficiencyType p) =>
-        proficiencies.ContainsKey(p) ? proficiencies[p] : new Proficiency();
+    // 버그 수정: 키 없을 때 new Proficiency()를 반환하면 AddExp 결과가 버려짐
+    // → 없으면 딕셔너리에 새로 추가 후 반환 (항상 동일 참조 보장)
+    public Proficiency GetProf(ProficiencyType p)
+    {
+        if (!proficiencies.ContainsKey(p))
+            proficiencies[p] = new Proficiency();
+        return proficiencies[p];
+    }
 
     // ===== 날짜/판정 =====
     public string DateString => CalendarSystem.FormatDate(day);
@@ -154,7 +160,7 @@ public class GameState
         fatigue = 0;
         fighterSlotProgress = 0;
         playerActionsUsed = 0;
-        playerLocation = MapLocation.Home;
+        playerLocation = MapLocation.None;
         nightChoice = NightActionType.Rest;
         nightCompleted = false;
         todayTrainingCount = 0;

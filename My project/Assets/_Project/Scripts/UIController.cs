@@ -302,7 +302,7 @@ public class UIController : MonoBehaviour
         if (phase == GamePhase.DayMap) RefreshDayMap(state);
         if (phase == GamePhase.DayPlaceAction) RefreshPlaceAction(state);
         if (phase == GamePhase.NightChoice) RefreshNightChoice(state);
-        if (phase == GamePhase.NightAction) RefreshNightAction(state);
+        if (phase == GamePhase.NightAction || phase == GamePhase.BattlePreparation) RefreshNightAction(state);
         if (phase == GamePhase.DaySummary) RefreshDaySummary(state);
     }
 
