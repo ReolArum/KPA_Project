@@ -56,7 +56,7 @@ public class BattleSceneController : MonoBehaviour
     [SerializeField] private GameObject timelineSlotPrefab;    // 슬롯 프리팹 (Image + TMP_Text)
     [SerializeField] private Sprite     iconPlayer;            // 플레이어 아이콘
     [SerializeField] private Sprite     iconOpponent;          // 상대 아이콘
-    [SerializeField] private int        timelineDisplayCount = 6;
+    [SerializeField] private int        timelineDisplayCount = 5;
 
     // ====================================================
     //  UI - 방침 버튼
@@ -86,7 +86,7 @@ public class BattleSceneController : MonoBehaviour
     [Header("데미지 팝업")]
     [SerializeField] private Canvas     battleCanvas;
     [SerializeField] private GameObject damagePopupPrefab;
-    [SerializeField] private float popupRiseHeight = 1.5f;
+    [SerializeField] private float popupRiseHeight = 80f;  // Canvas 픽셀 단위
     [SerializeField] private float popupDuration   = 0.9f;
     [SerializeField] private float popupFadeStart  = 0.5f;
     [SerializeField] private Color colorHit      = new Color(1f, 0.95f, 0.3f);
@@ -333,7 +333,7 @@ public class BattleSceneController : MonoBehaviour
                 float maxAV = Mathf.Max(1f, playerUnit.derived.SPD > 0 ? 10000f / playerUnit.derived.SPD : 10000f);
                 float ratio = Mathf.Clamp01(av / (maxAV * 1.5f));
                 int displayVal = Mathf.RoundToInt(ratio * 100f);
-                avText.text = i == 0 ? "▶" : displayVal.ToString();
+                avText.text = i == 0 ? ">>" : displayVal.ToString();
             }
 
             var bg = slot.GetComponent<Image>();
@@ -629,14 +629,16 @@ public class BattleSceneController : MonoBehaviour
         }
         else
         {
-            // 3D Transform 없음: 화면 상단/하단 고정
+            // 3D Transform 없음: 플레이어(좌측 하단), 상대(우측 상단) 고정 위치
             bool defIsOpponent = (defenderTr == opponentTransform);
-            startAnchor = new Vector3(Random.Range(-80f, 80f), defIsOpponent ? 260f : -260f, 0f);
+            startAnchor = defIsOpponent
+                ? new Vector3(320f,  180f, 0f)   // 상대: 우측 상단
+                : new Vector3(-320f, -180f, 0f); // 플레이어: 좌측 하단
         }
         rt.anchoredPosition = startAnchor;
 
         float xJitter  = Random.Range(-60f, 60f);
-        Vector3 endAnchor = startAnchor + new Vector3(xJitter, popupRiseHeight * 120f, 0f);
+        Vector3 endAnchor = startAnchor + new Vector3(xJitter, popupRiseHeight, 0f);
 
         float elapsed = 0f;
         while (elapsed < popupDuration)
