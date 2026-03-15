@@ -499,17 +499,21 @@ public class BattleSceneController : MonoBehaviour
         else
             yield return new WaitForSeconds(0.15f);
 
-        if (attackerAnim) attackerAnim.SetTrigger("Attack");
+        // 스킬마다 지정된 트리거 사용 (기본값: "Attack")
+        string atkTrigger = !string.IsNullOrEmpty(skill.animationTrigger) ? skill.animationTrigger : "Attack";
+        string hitTrigger = !string.IsNullOrEmpty(skill.hitAnimationTrigger) ? skill.hitAnimationTrigger : "Hit";
+
+        if (attackerAnim) attackerAnim.SetTrigger(atkTrigger);
 
         if (attackerAnim != null)
         {
             yield return null;
             float w = 0f;
-            while (!attackerAnim.GetCurrentAnimatorStateInfo(0).IsName("Attack") && w < 1f)
+            while (!attackerAnim.GetCurrentAnimatorStateInfo(0).IsName(atkTrigger) && w < 1f)
             { w += Time.deltaTime; yield return null; }
 
             w = 0f;
-            while (attackerAnim.GetCurrentAnimatorStateInfo(0).IsName("Attack") &&
+            while (attackerAnim.GetCurrentAnimatorStateInfo(0).IsName(atkTrigger) &&
                    attackerAnim.GetCurrentAnimatorStateInfo(0).normalizedTime < 0.4f && w < 2f)
             { w += Time.deltaTime; yield return null; }
         }
@@ -527,7 +531,7 @@ public class BattleSceneController : MonoBehaviour
             case HitOutcome.Hit:
             case HitOutcome.Critical:
                 defender.currentHP = Mathf.Max(0, defender.currentHP - dmgResult.finalDamage);
-                if (defenderAnim) { defenderAnim.speed = 1; defenderAnim.SetTrigger("Hit"); }
+                if (defenderAnim) { defenderAnim.speed = 1; defenderAnim.SetTrigger(hitTrigger); }
                 if (skill.avAdvance > 0) timeline.AdvanceUnit(attacker, skill.avAdvance);
                 if (skill.avDelay   > 0) timeline.DelayUnit(defender, skill.avDelay);
                 if (skill.appliedBuff   != null) buffSystem.ApplyBuff(attacker, skill.appliedBuff);
@@ -558,15 +562,15 @@ public class BattleSceneController : MonoBehaviour
         if (attackerAnim != null)
         {
             float w = 0f;
-            while (attackerAnim.GetCurrentAnimatorStateInfo(0).IsName("Attack") &&
+            while (attackerAnim.GetCurrentAnimatorStateInfo(0).IsName(atkTrigger) &&
                    attackerAnim.GetCurrentAnimatorStateInfo(0).normalizedTime < 0.85f && w < 2f)
             { w += Time.deltaTime; yield return null; }
         }
 
-        if (defenderAnim != null && defenderAnim.GetCurrentAnimatorStateInfo(0).IsName("Hit"))
+        if (defenderAnim != null && defenderAnim.GetCurrentAnimatorStateInfo(0).IsName(hitTrigger))
         {
             float w = 0f;
-            while (defenderAnim.GetCurrentAnimatorStateInfo(0).IsName("Hit") &&
+            while (defenderAnim.GetCurrentAnimatorStateInfo(0).IsName(hitTrigger) &&
                    defenderAnim.GetCurrentAnimatorStateInfo(0).normalizedTime < 0.85f && w < 1f)
             { w += Time.deltaTime; yield return null; }
         }
@@ -800,29 +804,35 @@ public class BattleSceneController : MonoBehaviour
         unit.equippedSkills.Clear();
 
         var basicAttack = ScriptableObject.CreateInstance<SkillData>();
-        basicAttack.name             = "일반공격";
-        basicAttack.skillName        = "일반공격";
-        basicAttack.category         = SkillCategory.Strike;
-        basicAttack.weight           = 60;
-        basicAttack.damageMultiplier = 1.0f;
-        basicAttack.cooldownTurns    = 0;
+        basicAttack.name                 = "일반공격";
+        basicAttack.skillName            = "일반공격";
+        basicAttack.category             = SkillCategory.Strike;
+        basicAttack.weight               = 60;
+        basicAttack.damageMultiplier     = 1.0f;
+        basicAttack.cooldownTurns        = 0;
+        basicAttack.animationTrigger     = "Attack";
+        basicAttack.hitAnimationTrigger  = "Hit";
 
         var guardStance = ScriptableObject.CreateInstance<SkillData>();
-        guardStance.name             = "방어자세";
-        guardStance.skillName        = "방어자세";
-        guardStance.category         = SkillCategory.Defense;
-        guardStance.weight           = 30;
-        guardStance.damageMultiplier = 0.5f;
-        guardStance.cooldownTurns    = 2;
+        guardStance.name                 = "방어자세";
+        guardStance.skillName            = "방어자세";
+        guardStance.category             = SkillCategory.Defense;
+        guardStance.weight               = 30;
+        guardStance.damageMultiplier     = 0.5f;
+        guardStance.cooldownTurns        = 2;
+        guardStance.animationTrigger     = "Attack_Guard";
+        guardStance.hitAnimationTrigger  = "Hit";
 
         var quickStep = ScriptableObject.CreateInstance<SkillData>();
-        quickStep.name             = "빠른발놀림";
-        quickStep.skillName        = "빠른발놀림";
-        quickStep.category         = SkillCategory.Mobility;
-        quickStep.weight           = 40;
-        quickStep.damageMultiplier = 0.8f;
-        quickStep.avAdvance        = 500f;
-        quickStep.cooldownTurns    = 3;
+        quickStep.name                   = "빠른발놀림";
+        quickStep.skillName              = "빠른발놀림";
+        quickStep.category               = SkillCategory.Mobility;
+        quickStep.weight                 = 40;
+        quickStep.damageMultiplier       = 0.8f;
+        quickStep.avAdvance              = 500f;
+        quickStep.cooldownTurns          = 3;
+        quickStep.animationTrigger       = "Attack_Step";
+        quickStep.hitAnimationTrigger    = "Hit";
 
         unit.equippedSkills.Add(basicAttack);
         unit.equippedSkills.Add(guardStance);

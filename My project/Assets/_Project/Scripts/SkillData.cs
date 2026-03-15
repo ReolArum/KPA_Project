@@ -19,6 +19,10 @@ public class SkillData : ScriptableObject
     public float avDelay;               // 대상 AV 증가
     public bool ignoreDefense;
 
+    [Header("애니메이션")]
+    public string animationTrigger    = "Attack";  // 공격자 Animator 트리거 이름
+    public string hitAnimationTrigger = "Hit";     // 피격자 Animator 트리거 이름
+
     [Header("쿨타임")]
     public int cooldownTurns = 0;       // 0 = 쿨타임 없음, N = N턴 후 재사용 가능
 
