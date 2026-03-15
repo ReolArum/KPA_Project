@@ -39,6 +39,46 @@ public class CombatUnit
     // 활성 버프 목록
     public List<BuffInstance> activeBuffs = new List<BuffInstance>();
 
+    // 스킬 쿨타임 추적 (스킬명 → 남은 턴 수)
+    public Dictionary<string, int> skillCooldowns = new Dictionary<string, int>();
+
+    // ====================================================
+    //  쿨타임 관련
+    // ====================================================
+
+    /// <summary>스킬 사용 후 쿨타임 등록</summary>
+    public void SetCooldown(SkillData skill)
+    {
+        if (skill == null || skill.cooldownTurns <= 0) return;
+        skillCooldowns[skill.skillName] = skill.cooldownTurns;
+    }
+
+    /// <summary>턴 시작 시 모든 쿨타임 1 감소</summary>
+    public void TickCooldowns()
+    {
+        var keys = new List<string>(skillCooldowns.Keys);
+        foreach (var k in keys)
+        {
+            skillCooldowns[k]--;
+            if (skillCooldowns[k] <= 0)
+                skillCooldowns.Remove(k);
+        }
+    }
+
+    /// <summary>스킬이 현재 사용 가능한지 (쿨타임 0 이하)</summary>
+    public bool IsSkillReady(SkillData skill)
+    {
+        if (skill == null) return false;
+        return !skillCooldowns.ContainsKey(skill.skillName);
+    }
+
+    /// <summary>스킬 남은 쿨타임 반환 (0 = 사용 가능)</summary>
+    public int GetCooldown(SkillData skill)
+    {
+        if (skill == null) return 0;
+        return skillCooldowns.TryGetValue(skill.skillName, out int v) ? v : 0;
+    }
+
     // ====================================================
     //  팩토리 메서드
     // ====================================================
