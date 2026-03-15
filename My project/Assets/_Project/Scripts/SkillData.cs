@@ -19,6 +19,9 @@ public class SkillData : ScriptableObject
     public float avDelay;               // 대상 AV 증가
     public bool ignoreDefense;
 
+    [Header("쿨타임")]
+    public int cooldownTurns = 0;       // 0 = 쿨타임 없음, N = N턴 후 재사용 가능
+
     [Header("버프/디버프")]
     public BuffData appliedBuff;
     public BuffData appliedDebuff;

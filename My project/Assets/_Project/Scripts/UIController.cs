@@ -272,7 +272,11 @@ public class UIController : MonoBehaviour
         if (panelDayMap) panelDayMap.SetActive(phase == GamePhase.DayMap);
         if (panelDayPlaceAction) panelDayPlaceAction.SetActive(phase == GamePhase.DayPlaceAction);
         if (panelNightChoice) panelNightChoice.SetActive(phase == GamePhase.NightChoice);
-        if (panelNightAction) panelNightAction.SetActive(phase == GamePhase.NightAction);
+        // 버그 수정: BattlePreparation 단계에서도 NightAction 패널을 표시
+        // (BattlePreparationUI가 별도 패널을 열므로 배경 패널로 NightAction을 유지)
+        if (panelNightAction) panelNightAction.SetActive(
+            phase == GamePhase.NightAction ||
+            phase == GamePhase.BattlePreparation);
         if (panelDaySummary) panelDaySummary.SetActive(phase == GamePhase.DaySummary);
         if (panelBattle) panelBattle.SetActive(phase == GamePhase.Battle);
 
@@ -298,7 +302,7 @@ public class UIController : MonoBehaviour
         if (phase == GamePhase.DayMap) RefreshDayMap(state);
         if (phase == GamePhase.DayPlaceAction) RefreshPlaceAction(state);
         if (phase == GamePhase.NightChoice) RefreshNightChoice(state);
-        if (phase == GamePhase.NightAction) RefreshNightAction(state);
+        if (phase == GamePhase.NightAction || phase == GamePhase.BattlePreparation) RefreshNightAction(state);
         if (phase == GamePhase.DaySummary) RefreshDaySummary(state);
     }
 

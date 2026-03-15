@@ -22,7 +22,7 @@ public class CombatBaseStats
         CombatStat.INT => INT,
         CombatStat.GUT => GUT,
         CombatStat.SEN => SEN,
-        _ => 0
+        _              => 0
     };
 
     public void Set(CombatStat stat, int value)
@@ -38,31 +38,24 @@ public class CombatBaseStats
         }
     }
 
-    public void Add(CombatStat stat, int amount)
-    {
-        Set(stat, Get(stat) + amount);
-    }
+    public void Add(CombatStat stat, int amount) => Set(stat, Get(stat) + amount);
 
     /// <summary>
-    /// 기존 TrainingStat → CombatBaseStats 변환.
-    /// 훈련 시스템과 전투 시스템의 브릿지.
+    /// 훈련 스탯 → 전투 기본 스탯 변환 (브릿지)
+    /// Strength  → STR  |  Agility → AGI  |  Dexterity → SEN  |  Endurance → VIT
+    /// GUT / INT는 기본값 5 (장비·유파로 보완)
     /// </summary>
     public static CombatBaseStats FromTrainingStats(Dictionary<TrainingStat, int> training)
     {
-        // 매핑 규칙 (프로젝트 사정에 맞게 조정)
-        // Strength  → STR
-        // Agility   → AGI
-        // Dexterity → SEN (재주 ≈ 감각/손재주)
-        // Endurance → VIT
-        // GUT, INT  → 유파/장비/성장으로 별도 확보
-        var stats = new CombatBaseStats();
-        stats.STR = training.GetValueOrDefault(TrainingStat.Strength, 0);
-        stats.AGI = training.GetValueOrDefault(TrainingStat.Agility, 0);
-        stats.SEN = training.GetValueOrDefault(TrainingStat.Dexterity, 0);
-        stats.VIT = training.GetValueOrDefault(TrainingStat.Endurance, 0);
-        stats.GUT = 5; // 기본값 (추후 훈련/장비로 확보)
-        stats.INT = 5; // 기본값
-        return stats;
+        return new CombatBaseStats
+        {
+            STR = training.GetValueOrDefault(TrainingStat.Strength,  0),
+            AGI = training.GetValueOrDefault(TrainingStat.Agility,   0),
+            SEN = training.GetValueOrDefault(TrainingStat.Dexterity, 0),
+            VIT = training.GetValueOrDefault(TrainingStat.Endurance, 0),
+            GUT = 5,
+            INT = 5
+        };
     }
 }
 
@@ -76,19 +69,61 @@ public class CombatDerivedStats
     public float HitRate;
     public float EvasionRate;
     public float CritRate;
+    public float CritDamage;    // 크리티컬 데미지 배율 (1.75 기본)
 
+    /// <summary>기본 계산 (유파 보너스 없음)</summary>
     public void Calculate(CombatBaseStats b)
     {
-        SPD       = b.AGI * 1.0f + b.SEN * 0.2f;
-        MaxHP     = 100f + b.VIT * 5f + b.GUT * 1f;
-        PhysAtk   = b.STR * 1.0f + b.GUT * 0.1f;
-        PhysDef   = b.VIT * 0.4f + b.STR * 0.1f;
-        HitRate   = 80f + b.SEN * 0.4f + b.AGI * 0.1f;
-        EvasionRate = Mathf.Min(b.AGI * 0.3f + b.SEN * 0.1f, 75f);
-        CritRate  = Mathf.Min(5f + b.SEN * 0.2f + b.SEN * 0.1f, 100f);
+        SPD          = Mathf.Max(1f, b.AGI * 1.0f + b.SEN * 0.2f);
+        MaxHP        = 100f + b.VIT * 5f + b.GUT * 1f;
+        PhysAtk      = b.STR * 1.0f + b.GUT * 0.1f;
+        PhysDef      = b.VIT * 0.4f + b.STR * 0.1f;
+        HitRate      = 80f + b.SEN * 0.4f + b.AGI * 0.1f;
+        EvasionRate  = Mathf.Min(b.AGI * 0.3f + b.SEN * 0.1f, 75f);
+        CritRate     = Mathf.Min(5f + b.SEN * 0.3f, 60f);   // 버그 수정: SEN*0.2 + SEN*0.1 → SEN*0.3
+        CritDamage   = 1.75f;
+    }
 
+    /// <summary>유파 SchoolBonus 적용 버전</summary>
+    public void Calculate(CombatBaseStats b, SchoolType school, int schoolLevel)
+    {
+        Calculate(b);
 
-        // 최소값 보장
-        if (SPD < 1f) SPD = 1f;
+        if (school == SchoolType.None || schoolLevel <= 0) return;
+
+        // 유파별 파생스탯 보정 (퍼센트 적용)
+        float atkBonus  = 0f, defBonus = 0f, spdBonus = 0f, hpBonus = 0f;
+        float hitBonus  = 0f, evaBonus = 0f, critBonus = 0f, critDmgBonus = 0f;
+
+        switch (school)
+        {
+            case SchoolType.Crusher:
+                atkBonus    = 0.05f * schoolLevel;   // 공격 +5%/레벨
+                critBonus   = 2.0f  * schoolLevel;   // 크리 확률 +2/레벨
+                critDmgBonus = 0.10f * schoolLevel;  // 크리 데미지 +10%/레벨
+                break;
+            case SchoolType.Ironclad:
+                defBonus    = 0.07f * schoolLevel;   // 방어 +7%/레벨
+                hpBonus     = 0.05f * schoolLevel;   // HP +5%/레벨
+                break;
+            case SchoolType.Agile:
+                spdBonus    = 0.06f * schoolLevel;   // 속도 +6%/레벨
+                evaBonus    = 3.0f  * schoolLevel;   // 회피 +3/레벨
+                break;
+            case SchoolType.Tactician:
+                hitBonus    = 2.0f  * schoolLevel;   // 명중 +2/레벨
+                atkBonus    = 0.03f * schoolLevel;   // 공격 +3%/레벨
+                break;
+        }
+
+        PhysAtk     *= (1f + atkBonus);
+        PhysDef     *= (1f + defBonus);
+        SPD         *= (1f + spdBonus);
+        SPD          = Mathf.Max(1f, SPD);
+        MaxHP       *= (1f + hpBonus);
+        HitRate     += hitBonus;
+        EvasionRate  = Mathf.Min(EvasionRate + evaBonus, 75f);
+        CritRate     = Mathf.Min(CritRate + critBonus, 60f);
+        CritDamage  += critDmgBonus;
     }
 }

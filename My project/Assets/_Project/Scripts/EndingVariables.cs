@@ -24,6 +24,12 @@ public class EndingVariables
 
     public int Get(EndingVar v) => values.ContainsKey(v) ? values[v] : 0;
 
+    public void Set(EndingVar v, int amount)
+    {
+        if (!values.ContainsKey(v)) values[v] = 0;
+        values[v] = Mathf.Clamp(amount, -100, 100);
+    }
+
     public void Modify(EndingVar v, int amount)
     {
         if (!values.ContainsKey(v)) values[v] = 0;

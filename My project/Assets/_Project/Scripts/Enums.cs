@@ -23,6 +23,7 @@ public enum FighterSlotType
 // ===== 플레이어 지도 장소 =====
 public enum MapLocation
 {
+    None = -1,   // 미선택 상태 (지도 복귀 시 기준점)
     Home,
     Shop,
     InvestigationHQ,

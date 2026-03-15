@@ -8,23 +8,33 @@ public class SkillSelector
     /// <summary>
     /// 스킬 선택 로직.
     /// 선택점수 = 스킬가중치 × (성향[카테고리] + 방침보정[카테고리])
+    /// 쿨타임 중인 스킬은 제외
     /// </summary>
     public SkillData SelectSkill(CombatUnit actor, CombatUnit target, BattleDirective directive)
     {
         if (actor.equippedSkills.Count == 0) return null;
 
-        // 1. 각 스킬의 선택 점수 계산
+        // 1. 각 스킬의 선택 점수 계산 (쿨타임 중 스킬 제외)
         var scores = new List<(SkillData skill, float score)>();
         float totalScore = 0f;
 
         foreach (var skill in actor.equippedSkills)
         {
+            // 쿨타임 중이면 건너뜀
+            if (!actor.IsSkillReady(skill)) continue;
+
             float tendencyVal = actor.tendency.GetValueOrDefault(skill.category, 0.25f);
             float directiveMod = DirectiveTable.GetModifier(directive, skill.category);
             float finalScore = skill.weight * (tendencyVal + directiveMod);
-            finalScore = Mathf.Max(finalScore, 0.01f); // 최소 확률 보장
+            finalScore = Mathf.Max(finalScore, 0.01f);
             scores.Add((skill, finalScore));
             totalScore += finalScore;
+        }
+
+        // 모든 스킬이 쿨타임 중이면 첫 번째 스킬 강제 사용
+        if (scores.Count == 0)
+        {
+            return actor.equippedSkills[0];
         }
 
         // 2. 가중치 랜덤 선택

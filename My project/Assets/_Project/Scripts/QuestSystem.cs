@@ -80,6 +80,7 @@ public class QuestSystem
 
     public static string GetLocationName(MapLocation loc) => loc switch
     {
+        MapLocation.None => "이동 중",
         MapLocation.Home => "집",
         MapLocation.Shop => "상점",
         MapLocation.InvestigationHQ => "조사 거점",

@@ -3,6 +3,10 @@ using UnityEngine;
 
 public static class BattleSceneData
 {
+    // 씬 이름 상수 (GameManager.SceneBattle/SceneMain과 동일하게 유지)
+    public const string SceneMain   = "MainScene";
+    public const string SceneBattle = "BattleScene";
+
     // 메인 씬 → 전투 씬으로 넘길 데이터
     public static GameState gameState;
     public static CombatUnit playerUnit;
