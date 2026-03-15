@@ -18,10 +18,13 @@ MonoBehaviour:
   description: "\uBE60\uB974\uAC8C \uC6C0\uC9C1\uC5EC \uB2E4\uC74C \uD589\uB3D9\uC744
     \uC55E\uB2F9\uAE34\uB2E4."
   weight: 2
-  damageMultiplier: 0.5
+  damageMultiplier: 10
   avAdvance: 1500
   avDelay: 0
   ignoreDefense: 0
+  animationTrigger: Attack
+  hitAnimationTrigger: Hit
+  cooldownTurns: 0
   appliedBuff: {fileID: 0}
   appliedDebuff: {fileID: 0}
   unlockCondition:
