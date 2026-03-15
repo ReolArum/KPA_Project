@@ -55,14 +55,19 @@ public class SkillSelector
 
     private bool ShouldReselect(CombatUnit actor, CombatUnit target, SkillData chosen)
     {
-        float targetHPRatio = target.currentHP / target.derived.MaxHP;
+        // Bug-A fix: MaxHP == 0 이면 나누기 0 → NaN 발생, 안전하게 0f로 처리
+        float targetHPRatio = target.derived.MaxHP > 0f
+            ? target.currentHP / target.derived.MaxHP
+            : 0f;
 
         // 상대 HP 20% 이하인데 방어 스킬 선택
         if (targetHPRatio <= 0.2f && chosen.category == SkillCategory.Defense)
             return true;
 
         // 자신 HP 20% 이하인데 공격 스킬 선택 (방어하는 게 나을 수 있음)
-        float selfHPRatio = actor.currentHP / actor.derived.MaxHP;
+        float selfHPRatio = actor.derived.MaxHP > 0f
+            ? actor.currentHP / actor.derived.MaxHP
+            : 0f;
         if (selfHPRatio <= 0.2f && chosen.category == SkillCategory.Strike)
             return true;
 

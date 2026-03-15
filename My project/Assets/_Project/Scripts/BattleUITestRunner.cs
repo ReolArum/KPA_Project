@@ -153,10 +153,11 @@ public class BattleUITestRunner : MonoBehaviour
     {
         unit.equippedSkills.Clear();
 
-        SkillData Mk(string name, SkillCategory cat, float w, float dmg, int cd = 0, float avAdv = 0)
+        SkillData Mk(string skillName, SkillCategory cat, float w, float dmg, int cd = 0, float avAdv = 0)
         {
             var s = ScriptableObject.CreateInstance<SkillData>();
-            s.skillName = name; s.category = cat;
+            s.name = skillName;          // Bug-B fix: Unity 내부 name도 일치시킴
+            s.skillName = skillName; s.category = cat;
             s.weight = w; s.damageMultiplier = dmg;
             s.cooldownTurns = cd; s.avAdvance = avAdv;
             return s;

@@ -333,6 +333,8 @@ public class GameManager : MonoBehaviour
     // 전투 씬에서 복귀한 후 결과 처리
     void OnBattleFinished(BattleReport report)
     {
+        // Bug-C fix: report가 null이면 기본값 사용 (씬 전환 중 예외 등 방어)
+        if (report == null) report = new BattleReport { playerWon = false };
         State.lastBattleReport = report.ToReportString();
 
         ArenaBattleResult arenaResult;

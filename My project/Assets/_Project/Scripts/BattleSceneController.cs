@@ -826,6 +826,7 @@ public class BattleSceneController : MonoBehaviour
         unit.equippedSkills.Clear();
 
         var basicAttack = ScriptableObject.CreateInstance<SkillData>();
+        basicAttack.name             = "일반공격";   // Bug-B fix: Unity 내부 name도 일치시킴
         basicAttack.skillName        = "일반공격";
         basicAttack.category         = SkillCategory.Strike;
         basicAttack.weight           = 60;
@@ -833,6 +834,7 @@ public class BattleSceneController : MonoBehaviour
         basicAttack.cooldownTurns    = 0;
 
         var guardStance = ScriptableObject.CreateInstance<SkillData>();
+        guardStance.name             = "방어자세";
         guardStance.skillName        = "방어자세";
         guardStance.category         = SkillCategory.Defense;
         guardStance.weight           = 30;
@@ -840,6 +842,7 @@ public class BattleSceneController : MonoBehaviour
         guardStance.cooldownTurns    = 2;   // 2턴 쿨다운
 
         var quickStep = ScriptableObject.CreateInstance<SkillData>();
+        quickStep.name             = "빠른발놀림";
         quickStep.skillName        = "빠른발놀림";
         quickStep.category         = SkillCategory.Mobility;
         quickStep.weight           = 40;
