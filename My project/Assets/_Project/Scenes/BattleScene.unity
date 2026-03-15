@@ -3139,39 +3139,20 @@ MonoBehaviour:
   resultDelay: 2
   maxTurns: 100
   sliderPlayerHP: {fileID: 633920859}
-  textPlayerHP: {fileID: 1502215374}
-  textPlayerName: {fileID: 1508666893}
-  fillPlayerHP: {fileID: 1169581873}
   sliderOpponentHP: {fileID: 510004837}
+  textPlayerHP: {fileID: 1502215374}
   textOpponentHP: {fileID: 1826185303}
+  textPlayerName: {fileID: 1508666893}
   textOpponentName: {fileID: 1017415484}
-  fillOpponentHP: {fileID: 142206622}
-  timelineRoot: {fileID: 1987123591}
-  timelineSlotPrefab: {fileID: 1006718703131478623, guid: 9c13f499703d58e4981733e855c20f2a, type: 3}
-  iconPlayer: {fileID: 0}
-  iconOpponent: {fileID: 0}
-  timelineDisplayCount: 5
-  btnAggressive: {fileID: 865008644}
-  btnNormal: {fileID: 137569871}
-  btnDefensive: {fileID: 451088620}
-  btnTechnical: {fileID: 1348562003}
-  textDirectiveLabel: {fileID: 9900013}
-  btnPause: {fileID: 9900004}
-  colorDirectiveSelected: {r: 1, g: 0.85, b: 0.1, a: 1}
-  colorDirectiveNormal: {r: 1, g: 1, b: 1, a: 1}
-  skillBarRoot: {fileID: 355482733}
-  skillBarSlotPrefab: {fileID: 1938889172687370296, guid: 01b28c4b60197724d82d0db6911fcabe, type: 3}
-  battleCanvas: {fileID: 1876600355}
-  damagePopupPrefab: {fileID: 0}
-  popupRiseHeight: 80
-  popupDuration: 0.9
-  popupFadeStart: 0.5
-  colorHit: {r: 1, g: 0.95, b: 0.3, a: 1}
-  colorCritical: {r: 1, g: 0.25, b: 0.1, a: 1}
-  colorMiss: {r: 0.7, g: 0.7, b: 0.7, a: 1}
-  colorEvade: {r: 0.4, g: 0.85, b: 1, a: 1}
+  textTimeline: {fileID: 0}
   textBattleLog: {fileID: 738656505}
   scrollLog: {fileID: 1503861023}
+  btnAggressive: {fileID: 865008644}
+  btnNormal: {fileID: 137569871}
+  btnDefensive: {fileID: 451088621}
+  btnTechnical: {fileID: 1348562004}
+  textDirectiveLabel: {fileID: 0}
+  btnPause: {fileID: 0}
   panelResult: {fileID: 2104995652}
   textResult: {fileID: 282002122}
   btnCloseResult: {fileID: 1472261557}

@@ -141,7 +141,7 @@ public class BattleSceneController : MonoBehaviour
     // ====================================================
     void Start()
     {
-        // 전투 데이터 없으면 더미 유닛으로 테스트
+        // 전투 데이터 검증 (없으면 더미 유닛으로 테스트 모드)
         if (BattleSceneData.playerUnit == null || BattleSceneData.opponentUnit == null)
         {
             Debug.LogWarning("[BattleScene] 전투 데이터 없음 → 더미 유닛으로 테스트 모드 시작");
@@ -154,6 +154,7 @@ public class BattleSceneController : MonoBehaviour
             opponentUnit = BattleSceneData.opponentUnit;
         }
 
+        // 스킬이 비어있으면 기본 스킬 부여
         if (playerUnit.equippedSkills  == null || playerUnit.equippedSkills.Count  == 0) AssignDefaultSkills(playerUnit);
         if (opponentUnit.equippedSkills == null || opponentUnit.equippedSkills.Count == 0) AssignDefaultSkills(opponentUnit);
 
@@ -434,35 +435,35 @@ public class BattleSceneController : MonoBehaviour
         CombatUnit attacker, CombatUnit defender,
         SkillData skill, bool isPlayerTurn)
     {
+        // 스킬별 트리거 이름 (비어있으면 기본값 사용)
         string atkTrigger = !string.IsNullOrEmpty(skill.animationTrigger)    ? skill.animationTrigger    : "Attack";
         string hitTrigger = !string.IsNullOrEmpty(skill.hitAnimationTrigger) ? skill.hitAnimationTrigger : "Hit";
 
-        // 1. 돌진
+        // 1. 공격자 이동 (startPos 기준으로 targetPos 계산 → 복귀 위치 오차 방지)
         if (attackerAnim) attackerAnim.speed = 1;
-        bool has3D = attackerTr != null && defenderTr != null;
-        if (has3D)
-        {
-            Vector3 targetPos = Vector3.Lerp(startPos, defenderTr.position, 0.75f);
-            yield return StartCoroutine(MoveToPosition(attackerTr, targetPos, attackMoveSpeed));
-        }
-        else yield return new WaitForSeconds(0.15f);
+        Vector3 targetPos = Vector3.Lerp(startPos, defenderTr.position, 0.75f);
+        yield return StartCoroutine(MoveToPosition(attackerTr, targetPos, attackMoveSpeed));
 
-        // 2. 공격 트리거
+        // 2. 공격 트리거 발동
         if (attackerAnim) attackerAnim.SetTrigger(atkTrigger);
 
-        // 3. 애니메이션 진입 대기 (타임아웃 1초)
+        // 3. 공격 애니메이션 진입 대기 (타임아웃 1초)
         if (attackerAnim != null)
         {
             float w = 0f;
-            yield return null;
+            yield return null;  // 트리거 처리 1프레임 대기
             while (!attackerAnim.GetCurrentAnimatorStateInfo(0).IsName(atkTrigger) && w < 1f)
             { w += Time.deltaTime; yield return null; }
 
-            // 4. 타격 타이밍 40% (타임아웃 2초)
+            // 4. 타격 타이밍 (애니메이션 40% 지점, 타임아웃 2초)
             w = 0f;
             while (attackerAnim.GetCurrentAnimatorStateInfo(0).IsName(atkTrigger) &&
                    attackerAnim.GetCurrentAnimatorStateInfo(0).normalizedTime < 0.4f && w < 2f)
             { w += Time.deltaTime; yield return null; }
+        }
+        else
+        {
+            yield return new WaitForSeconds(0.2f);
         }
         else yield return new WaitForSeconds(0.2f);
 
@@ -506,7 +507,7 @@ public class BattleSceneController : MonoBehaviour
         }
         AppendLog(logMsg);
 
-        // 7. 공격 종료 대기 (타임아웃 2초)
+        // 7. 공격 애니메이션 종료 대기 (타임아웃 2초)
         if (attackerAnim != null)
         {
             float w = 0f;
@@ -515,7 +516,7 @@ public class BattleSceneController : MonoBehaviour
             { w += Time.deltaTime; yield return null; }
         }
 
-        // 8. 피격 종료 대기 (타임아웃 1.5초)
+        // 8. 피격 애니메이션 종료 대기 (타임아웃 1.5초)
         if (defenderAnim != null && defenderAnim.GetCurrentAnimatorStateInfo(0).IsName(hitTrigger))
         {
             float w = 0f;
@@ -524,9 +525,8 @@ public class BattleSceneController : MonoBehaviour
             { w += Time.deltaTime; yield return null; }
         }
 
-        // 9. 복귀
-        if (has3D)
-            yield return StartCoroutine(MoveToPosition(attackerTr, startPos, attackMoveSpeed * 1.2f));
+        // 9. 원래 자리로 복귀 & 정지
+        yield return StartCoroutine(MoveToPosition(attackerTr, startPos, attackMoveSpeed * 1.2f));
         if (attackerAnim) attackerAnim.speed = 0;
         if (defenderAnim) defenderAnim.speed = 0;
 
@@ -716,7 +716,7 @@ public class BattleSceneController : MonoBehaviour
     }
 
     // ====================================================
-    //  더미 유닛 (테스트용)
+    //  더미 플레이어 유닛 (테스트 모드용)
     // ====================================================
     private static CombatUnit MakeDummyPlayer()
     {
@@ -732,7 +732,7 @@ public class BattleSceneController : MonoBehaviour
     }
 
     // ====================================================
-    //  기본 스킬 부여
+    //  기본 스킬 부여 (스킬 DB 없는 경우 폴백)
     // ====================================================
     private static void AssignDefaultSkills(CombatUnit unit)
     {
