@@ -1,4 +1,6 @@
 // ===== UIController.cs =====
+// 리팩토링: GameEvents 이벤트 구독 방식으로 전환
+// GameManager 직접 참조 최소화 (버튼 콜백용으로만 유지)
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
@@ -176,6 +178,51 @@ public class UIController : MonoBehaviour
     }
 
     // ====================================================
+    //  이벤트 구독 / 해제
+    // ====================================================
+    void OnEnable()
+    {
+        GameEvents.OnPhaseChanged       += HandlePhaseChanged;
+        GameEvents.OnRefreshRequested   += HandleRefreshRequested;
+        GameEvents.OnActionResult       += HandleActionResult;
+        GameEvents.OnFighterSlotResult  += HandleFighterSlotResult;
+        GameEvents.OnBattleResult       += HandleBattleResult;
+        GameEvents.OnProficiencyLevelUp += HandleProficiencyLevelUp;
+        GameEvents.OnArenaClosedWarning += HandleArenaClosedWarning;
+        GameEvents.OnStressWarning      += HandleStressWarning;
+        GameEvents.OnShowCalendar       += HandleShowCalendar;
+        GameEvents.OnHideCalendar       += HandleHideCalendar;
+    }
+
+    void OnDisable()
+    {
+        GameEvents.OnPhaseChanged       -= HandlePhaseChanged;
+        GameEvents.OnRefreshRequested   -= HandleRefreshRequested;
+        GameEvents.OnActionResult       -= HandleActionResult;
+        GameEvents.OnFighterSlotResult  -= HandleFighterSlotResult;
+        GameEvents.OnBattleResult       -= HandleBattleResult;
+        GameEvents.OnProficiencyLevelUp -= HandleProficiencyLevelUp;
+        GameEvents.OnArenaClosedWarning -= HandleArenaClosedWarning;
+        GameEvents.OnStressWarning      -= HandleStressWarning;
+        GameEvents.OnShowCalendar       -= HandleShowCalendar;
+        GameEvents.OnHideCalendar       -= HandleHideCalendar;
+    }
+
+    // ====================================================
+    //  이벤트 핸들러
+    // ====================================================
+    void HandlePhaseChanged(GamePhase phase) => ShowPhase(phase);
+    void HandleRefreshRequested(GameState state, GamePhase phase) => RefreshAll(state, phase);
+    void HandleActionResult(string msg) => ShowActionResult(msg);
+    void HandleFighterSlotResult(string msg) => ShowFighterSlotResult(msg);
+    void HandleBattleResult(ArenaBattleResult result) => ShowBattleResult(result);
+    void HandleProficiencyLevelUp(ProficiencyType type, int level) => ShowLevelUpNotice(type, level);
+    void HandleArenaClosedWarning() => ShowArenaClosedWarning();
+    void HandleStressWarning() => ShowStressWarning();
+    void HandleShowCalendar(GameState state) => ShowCalendar(state);
+    void HandleHideCalendar() => HideCalendar();
+
+    // ====================================================
     //  Setup
     // ====================================================
 
@@ -272,16 +319,11 @@ public class UIController : MonoBehaviour
         if (panelDayMap) panelDayMap.SetActive(phase == GamePhase.DayMap);
         if (panelDayPlaceAction) panelDayPlaceAction.SetActive(phase == GamePhase.DayPlaceAction);
         if (panelNightChoice) panelNightChoice.SetActive(phase == GamePhase.NightChoice);
-        // 버그 수정: BattlePreparation 단계에서도 NightAction 패널을 표시
-        // (BattlePreparationUI가 별도 패널을 열므로 배경 패널로 NightAction을 유지)
         if (panelNightAction) panelNightAction.SetActive(
             phase == GamePhase.NightAction ||
             phase == GamePhase.BattlePreparation);
         if (panelDaySummary) panelDaySummary.SetActive(phase == GamePhase.DaySummary);
         if (panelBattle) panelBattle.SetActive(phase == GamePhase.Battle);
-
-        // ★ 추가: 전투 준비가 아닌 페이즈에서는 다른 패널만 표시
-        // (BattlePreparation 패널은 BattlePreparationUI가 직접 관리)
 
         if (phase != GamePhase.ScheduleSetting)
         {
@@ -470,7 +512,7 @@ public class UIController : MonoBehaviour
             endText += $"{state.endingVars.GetLabel(v)}: {state.endingVars.Get(v)}";
         }
 
-        // ★ 수정: 전투 리포트 (string으로 저장됨)
+        // 전투 리포트
         string battleText = "";
         if (!string.IsNullOrEmpty(state.lastBattleReport))
         {

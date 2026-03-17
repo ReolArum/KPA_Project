@@ -71,6 +71,20 @@ public static class SaveSystem
         public string skillName;
     }
 
+    // 퀘스트 저장
+    [System.Serializable]
+    private class QuestDto
+    {
+        public int    id;
+        public string title;
+        public string description;
+        public int    pickupLocation;
+        public int    deliverLocation;
+        public int    goldReward;
+        public bool   isAccepted;
+        public bool   isCompleted;
+    }
+
     [System.Serializable]
     private class SaveData
     {
@@ -109,6 +123,11 @@ public static class SaveSystem
         public SchoolLevelDto[] schoolLevels;
         public EquippedGearDto[] equippedGear;
         public EquippedSkillDto[] equippedSkills;
+
+        // ── 퀘스트 ──
+        public QuestDto[] availableQuests;
+        public QuestDto[] activeQuests;
+        public QuestDto[] completedQuests;
     }
 
     // ====================================================
@@ -197,6 +216,11 @@ public static class SaveSystem
             if (skill != null)
                 skillList.Add(new EquippedSkillDto { skillName = skill.skillName });
         data.equippedSkills = skillList.ToArray();
+
+        // 퀘스트
+        data.availableQuests = SerializeQuests(state.quests.availableQuests);
+        data.activeQuests    = SerializeQuests(state.quests.activeQuests);
+        data.completedQuests = SerializeQuests(state.quests.completedQuests);
 
         PlayerPrefs.SetString(Key, JsonUtility.ToJson(data));
         PlayerPrefs.Save();
@@ -297,6 +321,59 @@ public static class SaveSystem
                 if (skill != null) cd.equippedSkills.Add(skill);
             }
         }
+
+        // 퀘스트
+        if (data.availableQuests != null || data.activeQuests != null)
+        {
+            state.quests.availableQuests = DeserializeQuests(data.availableQuests);
+            state.quests.activeQuests    = DeserializeQuests(data.activeQuests);
+            state.quests.completedQuests = DeserializeQuests(data.completedQuests);
+        }
+    }
+
+    // ====================================================
+    //  퀘스트 직렬화 헬퍼
+    // ====================================================
+    private static QuestDto[] SerializeQuests(List<Quest> quests)
+    {
+        if (quests == null) return new QuestDto[0];
+        var list = new List<QuestDto>();
+        foreach (var q in quests)
+        {
+            list.Add(new QuestDto
+            {
+                id              = q.id,
+                title           = q.title,
+                description     = q.description,
+                pickupLocation  = (int)q.pickupLocation,
+                deliverLocation = (int)q.deliverLocation,
+                goldReward      = q.goldReward,
+                isAccepted      = q.isAccepted,
+                isCompleted     = q.isCompleted
+            });
+        }
+        return list.ToArray();
+    }
+
+    private static List<Quest> DeserializeQuests(QuestDto[] dtos)
+    {
+        var list = new List<Quest>();
+        if (dtos == null) return list;
+        foreach (var d in dtos)
+        {
+            list.Add(new Quest
+            {
+                id              = d.id,
+                title           = d.title,
+                description     = d.description,
+                pickupLocation  = (MapLocation)d.pickupLocation,
+                deliverLocation = (MapLocation)d.deliverLocation,
+                goldReward      = d.goldReward,
+                isAccepted      = d.isAccepted,
+                isCompleted     = d.isCompleted
+            });
+        }
+        return list;
     }
 
     public static void Clear()
