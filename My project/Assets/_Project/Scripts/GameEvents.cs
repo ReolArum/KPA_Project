@@ -15,10 +15,22 @@ public static class GameEvents
     //  전체 UI 갱신 요청
     // ====================================================
     public static event Action<GameState, GamePhase> OnRefreshRequested;
-    public static void RaiseRefreshRequested(GameState state, GamePhase phase)
-        => OnRefreshRequested?.Invoke(state, phase);
+    public static void RaiseRefreshRequested(GameState s, GamePhase p) => OnRefreshRequested?.Invoke(s, p);
 
-    // ====================================================
+    // ── 탐사 관련 이벤드 ──
+    public static event Action<ExplorationStageData, ExplorationState> OnExplorationStarted;
+    public static void RaiseExplorationStarted(ExplorationStageData d, ExplorationState s) => OnExplorationStarted?.Invoke(d, s);
+
+    public static event Action<ExplorationState> OnExplorationUpdated;
+    public static void RaiseExplorationUpdated(ExplorationState s) => OnExplorationUpdated?.Invoke(s);
+
+    public static event Action<ExplorationNodeData, List<ExplorationChoiceData>> OnExplorationEventTriggered;
+    public static void RaiseExplorationEventTriggered(ExplorationNodeData n, List<ExplorationChoiceData> c) => OnExplorationEventTriggered?.Invoke(n, c);
+
+    public static event Action<ExplorationPhase> OnExplorationPhaseChanged;
+    public static void RaiseExplorationPhaseChanged(ExplorationPhase p) => OnExplorationPhaseChanged?.Invoke(p);
+
+    // ── 알림 및 메시지 ──====================================================
     //  행동 결과 메시지
     // ====================================================
     public static event Action<string> OnActionResult;

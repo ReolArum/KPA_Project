@@ -251,13 +251,12 @@ public class GameManager : MonoBehaviour
             case NightActionType.Exploration:
                 State.stress  += 5;
                 State.fatigue += 3;
-                State.gold    += 5;
                 State.endingVars.Modify(EndingVar.Reputation, 1);
-                var profExp = State.GetProf(ProficiencyType.Exploration);
-                if (profExp.AddExp(4)) GameEvents.RaiseProficiencyLevelUp(ProficiencyType.Exploration, profExp.level);
-                State.nightCompleted = true;
-                SetPhase(GamePhase.DaySummary);
-                break;
+                // 숙련도 제외 요청에 따라 Exploration 숙련도 추가 삭제 (필요 시)
+                
+                // 탐사 씬으로 전환
+                SceneManager.LoadScene("ExplorationScene");
+                return;
 
             case NightActionType.Arena:
                 State.stress  += 3;

@@ -57,6 +57,10 @@ public class GameState
     public int todayTrainingCount = 0;
     public int todayGoldEarned = 0;
 
+    [Header("Exploration Results")]
+    public int explorationGoldTotal = 0;
+    public List<string> explorationFoundKeys = new List<string>();
+
     // ===== 전투 데이터 ★ =====
     public PlayerCombatData combatData = new PlayerCombatData();
 
