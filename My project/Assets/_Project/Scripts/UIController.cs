@@ -8,9 +8,10 @@ using UnityEngine.UI;
 
 public class UIController : MonoBehaviour
 {
-    // ====================================================
-    //  Panels
-    // ====================================================
+    [Header("Module Controllers")]
+    [SerializeField] private GlobalHUDController globalHUD;
+    [SerializeField] private PlaceActionUIController placeActionUI;
+
     [Header("Panels")]
     [SerializeField] private GameObject panelTitle;
     [SerializeField] private GameObject panelSchedule;
@@ -22,51 +23,32 @@ public class UIController : MonoBehaviour
     [SerializeField] private GameObject panelBattle;
 
     // ====================================================
-    //  Top Bar
-    // ====================================================
-    [Header("TopBar")]
-    [SerializeField] private TMP_Text textDay;
-    [SerializeField] private TMP_Text textTime;
-    [SerializeField] private TMP_Text textGold;
-    [SerializeField] private TMP_Text textStress;
-    [SerializeField] private TMP_Text textFatigue;
-    [SerializeField] private TMP_Text textRank;
-    [SerializeField] private TMP_Text textActions;
-    [SerializeField] private Button btnOpenCalendar;
-
-    // ====================================================
     //  Fighter Schedule Grid
     // ====================================================
     [Header("Fighter Schedule")]
     [SerializeField] private Transform scheduleGridRoot;
     [SerializeField] private ScheduleSlotView slotPrefab;
 
-    // ====================================================
-    //  Day Map
-    // ====================================================
-    [Header("Day Map")]
+    [Header("Day Map Buttons")]
     [SerializeField] private Button btnMapHome;
     [SerializeField] private Button btnMapShop;
-    [SerializeField] private Button btnMapInvestigation;
     [SerializeField] private Button btnMapTrainingGround;
     [SerializeField] private Button btnMapCafe;
     [SerializeField] private Button btnMapQuestBoard;
     [SerializeField] private TMP_Text textPlayerLocation;
     [SerializeField] private TMP_Text textFighterProgress;
 
-    // ====================================================
-    //  Place Action
-    // ====================================================
-    [Header("Place Action")]
-    [SerializeField] private TMP_Text textPlaceName;
-    [SerializeField] private TMP_Text textPlaceActionResult;
-    [SerializeField] private TMP_Text textFighterSlotResult;
+    [Header("Place Action Buttons")]
     [SerializeField] private Button btnActionTalk;
-    [SerializeField] private Button btnActionInvestigate;
     [SerializeField] private Button btnActionAcceptQuest;
     [SerializeField] private Button btnActionDeliverQuest;
     [SerializeField] private Button btnActionBuyItem;
+    [SerializeField] private Button btnActionSellItem;
     [SerializeField] private Button btnActionRest;
+    [SerializeField] private Button btnActionUpgrade;
+    [SerializeField] private Button btnActionSupport;
+    [SerializeField] private Button btnActionFood;
+    [SerializeField] private Button btnActionReroll;
     [SerializeField] private Button btnBackToMap;
 
     // ====================================================
@@ -266,7 +248,6 @@ public class UIController : MonoBehaviour
     {
         if (btnMapHome) btnMapHome.onClick.AddListener(() => gm.OnClickMapLocation((int)MapLocation.Home));
         if (btnMapShop) btnMapShop.onClick.AddListener(() => gm.OnClickMapLocation((int)MapLocation.Shop));
-        if (btnMapInvestigation) btnMapInvestigation.onClick.AddListener(() => gm.OnClickMapLocation((int)MapLocation.InvestigationHQ));
         if (btnMapTrainingGround) btnMapTrainingGround.onClick.AddListener(() => gm.OnClickMapLocation((int)MapLocation.TrainingGround));
         if (btnMapCafe) btnMapCafe.onClick.AddListener(() => gm.OnClickMapLocation((int)MapLocation.Cafe));
         if (btnMapQuestBoard) btnMapQuestBoard.onClick.AddListener(() => gm.OnClickMapLocation((int)MapLocation.QuestBoard));
@@ -275,11 +256,15 @@ public class UIController : MonoBehaviour
     void SetupPlaceActionButtons()
     {
         if (btnActionTalk) btnActionTalk.onClick.AddListener(() => gm.OnClickPlaceAction((int)PlaceActionType.Talk));
-        if (btnActionInvestigate) btnActionInvestigate.onClick.AddListener(() => gm.OnClickPlaceAction((int)PlaceActionType.Investigate));
         if (btnActionAcceptQuest) btnActionAcceptQuest.onClick.AddListener(() => gm.OnClickPlaceAction((int)PlaceActionType.AcceptQuest));
         if (btnActionDeliverQuest) btnActionDeliverQuest.onClick.AddListener(() => gm.OnClickPlaceAction((int)PlaceActionType.DeliverQuest));
         if (btnActionBuyItem) btnActionBuyItem.onClick.AddListener(() => gm.OnClickPlaceAction((int)PlaceActionType.BuyItem));
+        if (btnActionSellItem) btnActionSellItem.onClick.AddListener(() => gm.OnClickPlaceAction((int)PlaceActionType.SellItem));
         if (btnActionRest) btnActionRest.onClick.AddListener(() => gm.OnClickPlaceAction((int)PlaceActionType.Rest));
+        if (btnActionUpgrade) btnActionUpgrade.onClick.AddListener(() => gm.OnClickPlaceAction((int)PlaceActionType.UpgradeFacility));
+        if (btnActionSupport) btnActionSupport.onClick.AddListener(() => gm.OnClickPlaceAction((int)PlaceActionType.SupportTraining));
+        if (btnActionFood) btnActionFood.onClick.AddListener(() => gm.OnClickPlaceAction((int)PlaceActionType.BuyFood));
+        if (btnActionReroll) btnActionReroll.onClick.AddListener(() => gm.OnClickPlaceAction((int)PlaceActionType.RerollQuests));
         if (btnBackToMap) btnBackToMap.onClick.AddListener(() => gm.OnClickBackToMap());
     }
 
@@ -338,7 +323,7 @@ public class UIController : MonoBehaviour
 
     public void RefreshAll(GameState state, GamePhase phase)
     {
-        RefreshTopBar(state, phase);
+        if (globalHUD) globalHUD.Refresh(state, phase);
         RefreshScheduleGrid(state);
 
         if (phase == GamePhase.DayMap) RefreshDayMap(state);
@@ -350,13 +335,7 @@ public class UIController : MonoBehaviour
 
     void RefreshTopBar(GameState state, GamePhase phase)
     {
-        if (textDay) textDay.text = $"{state.DateString} (Day {state.day})";
-        if (textGold) textGold.text = $"Gold: {state.gold}";
-        if (textTime) textTime.text = GameManager.GetCurrentTimeLabel(state, phase);
-        if (textStress) textStress.text = $"스트레스: {state.stress}";
-        if (textFatigue) textFatigue.text = $"피로: {state.fatigue}";
-        if (textRank) textRank.text = $"등급: {state.arena.GetRankName()}";
-        if (textActions) textActions.text = $"행동: {state.playerActionsUsed}/{GameState.MaxPlayerActions}";
+        // Replaced by GlobalHUDController
     }
 
     void RefreshScheduleGrid(GameState state)
@@ -391,15 +370,9 @@ public class UIController : MonoBehaviour
 
     void RefreshDayMap(GameState state)
     {
-        if (textPlayerLocation)
-            textPlayerLocation.text = $"현재 위치: {QuestSystem.GetLocationName(state.playerLocation)}";
-        if (textFighterProgress)
-            textFighterProgress.text = $"전투체 진행: {state.fighterSlotProgress}/{GameState.DaySlotCount}";
-
         bool hasActions = !state.IsDayOver;
         if (btnMapHome) btnMapHome.interactable = hasActions;
         if (btnMapShop) btnMapShop.interactable = hasActions;
-        if (btnMapInvestigation) btnMapInvestigation.interactable = hasActions;
         if (btnMapTrainingGround) btnMapTrainingGround.interactable = hasActions;
         if (btnMapCafe) btnMapCafe.interactable = hasActions;
         if (btnMapQuestBoard) btnMapQuestBoard.interactable = hasActions;
@@ -409,24 +382,7 @@ public class UIController : MonoBehaviour
 
     void RefreshPlaceAction(GameState state)
     {
-        if (textPlaceName)
-            textPlaceName.text = QuestSystem.GetLocationName(state.playerLocation);
-
-        bool shop = state.playerLocation == MapLocation.Shop;
-        bool invest = state.playerLocation == MapLocation.InvestigationHQ;
-        bool cafe = state.playerLocation == MapLocation.Cafe;
-        bool quest = state.playerLocation == MapLocation.QuestBoard;
-        bool training = state.playerLocation == MapLocation.TrainingGround;
-        bool home = state.playerLocation == MapLocation.Home;
-        bool canDeliver = state.quests.CheckDelivery(state.playerLocation) != null;
-
-        if (btnActionTalk) btnActionTalk.gameObject.SetActive(cafe || training);
-        if (btnActionInvestigate) btnActionInvestigate.gameObject.SetActive(invest);
-        if (btnActionAcceptQuest) btnActionAcceptQuest.gameObject.SetActive(quest);
-        if (btnActionDeliverQuest) btnActionDeliverQuest.gameObject.SetActive(canDeliver);
-        if (btnActionBuyItem) btnActionBuyItem.gameObject.SetActive(shop);
-        if (btnActionRest) btnActionRest.gameObject.SetActive(home || cafe);
-
+        if (placeActionUI) placeActionUI.Refresh(state);
         RefreshQuestList(state);
     }
 

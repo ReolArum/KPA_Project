@@ -19,12 +19,17 @@ public class GameState
 
     // ===== 기본 =====
     public int day = 1;
-    public int gold = 0;
+    public int gold = 100; // Changed initial value from 0 to 100
     public int reputation = 0;
 
     // ===== 전투체 스케줄 =====
     public FighterSlot[] fighterSchedule;
     public int fighterSlotProgress = 0;
+
+    // [NEW] 장소별 시설/상태 데이터
+    public int facilityUpgradeLevel = 0; // 훈련장 업그레이드 단계
+    public bool dailyRerollUsed = false; // 오늘 의뢰 리롤 사용 여부
+    public float trainingEfficiency = 1.0f; // 음식 등에 의한 훈련 효율 버프
 
     // ===== 플레이어 =====
     public int playerActionsUsed = 0;
@@ -150,6 +155,9 @@ public class GameState
         nightCompleted = false;
         todayTrainingCount = 0;
         todayGoldEarned = 0;
+        dailyRerollUsed = false; // Added new field reset
+        // 피로도에 따른 기본 효율 조정 (버프는 초기화)
+        trainingEfficiency = 1.0f; // Added new field reset
         // 스케줄(type, trainingStat)은 유지 → 플레이어가 설정한 스케줄이 다음 날도 유지됨
         // fighterSchedule은 건드리지 않음
     }

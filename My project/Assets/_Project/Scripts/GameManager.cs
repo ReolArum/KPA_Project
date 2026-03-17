@@ -100,14 +100,21 @@ public class GameManager : MonoBehaviour
         State.playerActionsUsed++;
         ExecuteFighterSlot();
 
-        if (State.IsDayOver) { TransitionToNight(); return; }
-
+        // [변경] 행동권 소진 시에도 일단 장소 UI로 진입하여 마지막 행동을 보장함
         SetPhase(GamePhase.DayPlaceAction);
     }
 
     public void OnClickBackToMap()
     {
         if (Phase != GamePhase.DayPlaceAction) return;
+
+        // [변경] 지도 복귀 시도 시 행동권이 없으면 즉시 밤으로 전환
+        if (State.IsDayOver)
+        {
+            TransitionToNight();
+            return;
+        }
+
         State.playerLocation = MapLocation.None;
         SetPhase(GamePhase.DayMap);
     }
@@ -136,16 +143,92 @@ public class GameManager : MonoBehaviour
                 GameEvents.RaiseActionResult("대화 완료. 동기화 +2");
                 break;
 
-            case PlaceActionType.Investigate:
-                State.stress += 2;
-                State.endingVars.Modify(EndingVar.Reputation, 1);
-                var profInv = State.GetProf(ProficiencyType.Investigation);
-                if (profInv.AddExp(3)) GameEvents.RaiseProficiencyLevelUp(ProficiencyType.Investigation, profInv.level);
-                GameEvents.RaiseActionResult("조사 수행. 평판 +1");
+            case PlaceActionType.AcceptQuest:
+                GameEvents.RaiseActionResult("의뢰 게시판에서 수령 가능합니다.");
                 break;
 
-            case PlaceActionType.AcceptQuest:
-                GameEvents.RaiseActionResult("의뢰를 확인하세요.");
+            case PlaceActionType.DeliverQuest:
+                var completed = State.quests.CheckDelivery(State.playerLocation);
+                if (completed != null)
+                {
+                    State.gold += completed.goldReward;
+                    State.todayGoldEarned += completed.goldReward;
+                    State.quests.CompleteQuest(completed.id);
+                    GameEvents.RaiseActionResult($"의뢰 보상 수령! (+{completed.goldReward}G)");
+                }
+                break;
+
+            case PlaceActionType.BuyItem:
+                GameEvents.RaiseActionResult("상점에서 장비를 구매합니다.");
+                break;
+
+            case PlaceActionType.SellItem:
+                GameEvents.RaiseActionResult("불필요한 장비를 판매합니다.");
+                break;
+
+            case PlaceActionType.Rest:
+                if (State.playerLocation == MapLocation.Cafe)
+                {
+                    // 카페 고급 휴식 (골드 소모)
+                    if (State.gold >= 30)
+                    {
+                        State.gold -= 30;
+                        State.fatigue = Mathf.Max(0, State.fatigue - 15);
+                        GameEvents.RaiseActionResult("카페 고급 휴식 (피로 -15, -30G)");
+                    }
+                    else GameEvents.RaiseActionResult("골드가 부족합니다.");
+                }
+                else
+                {
+                    // 집 일반 휴식
+                    State.fatigue = Mathf.Max(0, State.fatigue - 5);
+                    GameEvents.RaiseActionResult("집에서 휴식 (피로 -5)");
+                }
+                break;
+
+            case PlaceActionType.UpgradeFacility:
+                int cost = (State.facilityUpgradeLevel + 1) * 100;
+                if (State.gold >= cost)
+                {
+                    State.gold -= cost;
+                    State.facilityUpgradeLevel++;
+                    GameEvents.RaiseActionResult($"훈련 시설 업그레이드 완료! (Lv.{State.facilityUpgradeLevel})");
+                }
+                else GameEvents.RaiseActionResult($"골드가 부족합니다. (필요: {cost}G)");
+                break;
+
+            case PlaceActionType.SupportTraining:
+                // 현재 슬롯이 훈련 중인지 확인
+                var currentSlot = State.fighterSchedule[State.fighterSlotProgress];
+                if (currentSlot.type == FighterSlotType.Training)
+                {
+                    State.stress += 2; // 플레이어 피로/스트레스 대신 간단히 처리
+                    // 보너스 효과는 ExecuteFighterSlot에서 처리하도록 State에 표기하거나 즉시 반영
+                    State.GetStat(currentSlot.trainingStat).value += 2;
+                    GameEvents.RaiseActionResult($"훈련 보조 수행! ({GetCurrentStatName(currentSlot.trainingStat)} +2)");
+                }
+                else GameEvents.RaiseActionResult("지금은 훈련 중이 아닙니다.");
+                break;
+
+            case PlaceActionType.BuyFood:
+                if (State.gold >= 50)
+                {
+                    State.gold -= 50;
+                    State.trainingEfficiency = 1.5f;
+                    State.fatigue = Mathf.Max(0, State.fatigue - 5);
+                    GameEvents.RaiseActionResult("특수 음식 섭취! (훈련 효율 증가, 피로 -5)");
+                }
+                else GameEvents.RaiseActionResult("골드가 부족합니다.");
+                break;
+
+            case PlaceActionType.RerollQuests:
+                if (!State.dailyRerollUsed)
+                {
+                    State.dailyRerollUsed = true;
+                    State.quests.GenerateDailyQuests(State.day); // 리롤 시 새로운 의뢰 생성
+                    GameEvents.RaiseActionResult("의뢰 게시판 리롤 완료!");
+                }
+                else GameEvents.RaiseActionResult("오늘은 더 이상 리롤할 수 없습니다.");
                 break;
 
             case PlaceActionType.DeliverQuest:
@@ -186,13 +269,18 @@ public class GameManager : MonoBehaviour
         switch (slot.type)
         {
             case FighterSlotType.Training:
-                State.AddStat(slot.trainingStat, BaseTrainAmount);
-                State.todayTrainingCount++;
-                State.fatigue += Mathf.Max(0, TrainFatigue - profTrain.TrainingFatigueReduction);
+                int amount = BaseTrainAmount + State.facilityUpgradeLevel; // 시설 레벨당 +1
+                amount = Mathf.RoundToInt(amount * State.trainingEfficiency); // 음식 효율 곱셈
+
+                State.GetStat(slot.trainingStat).value += amount;
+                State.fatigue += TrainFatigue;
                 State.stress  += TrainStress;
-                State.endingVars.Modify(EndingVar.Sync, 1);
-                profTrain.AddExp(3);
-                GameEvents.RaiseFighterSlotResult($"전투체: {GetStatName(slot.trainingStat)} 훈련 완료 (+{BaseTrainAmount})");
+                State.todayTrainingCount++;
+                
+                var profTrain = State.GetProf(ProficiencyType.Training);
+                if (profTrain.AddExp(amount)) GameEvents.RaiseProficiencyLevelUp(ProficiencyType.Training, profTrain.level);
+
+                GameEvents.RaiseFighterSlotResult($"전투체: 훈련({GetCurrentStatName(slot.trainingStat)}) 완료 (+{amount})");
                 break;
 
             case FighterSlotType.PartTime:
@@ -430,6 +518,8 @@ public class GameManager : MonoBehaviour
         GamePhase.DaySummary                                           => "22:00",
         _                                                              => $"{8 + state.playerActionsUsed * 3:00}:00"
     };
+
+    public string GetCurrentStatName(TrainingStat stat) => GetStatName(stat);
 
     public static string GetStatName(TrainingStat stat) => stat switch
     {

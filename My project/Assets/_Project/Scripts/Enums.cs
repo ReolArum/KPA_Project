@@ -26,7 +26,6 @@ public enum MapLocation
     None = -1,   // 미선택 상태 (지도 복귀 시 기준점)
     Home,
     Shop,
-    InvestigationHQ,
     TrainingGround,
     Cafe,
     QuestBoard
@@ -40,7 +39,12 @@ public enum PlaceActionType
     AcceptQuest,
     DeliverQuest,
     BuyItem,
-    Rest
+    SellItem,      // [NEW] 판매
+    Rest,
+    UpgradeFacility, // [NEW] 시설 업그레이드
+    SupportTraining, // [NEW] 훈련 보조
+    BuyFood,         // [NEW] 음식 구매
+    RerollQuests     // [NEW] 의뢰 리롤
 }
 
 // ===== 밤 선택지 =====

@@ -27,7 +27,7 @@ public class QuestSystem
         availableQuests.Clear();
 
         // 매일 2~3개 의뢰 생성 (더미)
-        var locations = new[] { MapLocation.Shop, MapLocation.TrainingGround, MapLocation.Cafe, MapLocation.InvestigationHQ };
+        var locations = new[] { MapLocation.Shop, MapLocation.TrainingGround, MapLocation.Cafe, MapLocation.Home };
 
         int count = 2 + (day % 2); // 2~3개
 
@@ -82,11 +82,10 @@ public class QuestSystem
     {
         MapLocation.None => "이동 중",
         MapLocation.Home => "집",
-        MapLocation.Shop => "상점",
-        MapLocation.InvestigationHQ => "조사 거점",
-        MapLocation.TrainingGround => "훈련소",
-        MapLocation.Cafe => "카페",
-        MapLocation.QuestBoard => "의뢰 게시판",
+        MapLocation.Shop => "일반 매점",
+        MapLocation.TrainingGround => "연무장",
+        MapLocation.Cafe => "지하 휴게실",
+        MapLocation.QuestBoard => "정보 게시판",
         _ => "?"
     };
 }
