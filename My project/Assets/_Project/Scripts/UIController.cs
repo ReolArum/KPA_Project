@@ -137,6 +137,12 @@ public class UIController : MonoBehaviour
     int popupTargetIndex = -1;
     int calendarViewYear = 1;
     int calendarViewMonth = 1;
+    int selectedScheduleSlotIndex = 0; // [NEW] 현재 선택된 슬롯 인덱스
+
+    [Header("Schedule Preview UI")]
+    [SerializeField] private TMP_Text textSchedulePreviewResult; // "총 예상 상승량" 표시용
+    [SerializeField] private Button btnApplyYesterday;
+    [SerializeField] private Button btnResetSchedule;
 
     void Awake()
     {
@@ -148,6 +154,7 @@ public class UIController : MonoBehaviour
         SetupMapButtons();
         SetupPlaceActionButtons();
         SetupNightButtons();
+        SetupScheduleButtons(); // [NEW] 스케줄 보조 버튼 초기화
         SetupCalendarButtons();
         SetupBattleResultButton();
         SetupLevelUpNotice();
@@ -253,6 +260,12 @@ public class UIController : MonoBehaviour
         if (btnMapQuestBoard) btnMapQuestBoard.onClick.AddListener(() => gm.OnClickMapLocation((int)MapLocation.QuestBoard));
     }
 
+    void SetupScheduleButtons()
+    {
+        if (btnApplyYesterday) btnApplyYesterday.onClick.AddListener(() => gm.OnClickApplyYesterdaySchedule());
+        if (btnResetSchedule) btnResetSchedule.onClick.AddListener(() => gm.OnClickResetSchedule());
+    }
+
     void SetupPlaceActionButtons()
     {
         if (btnActionTalk) btnActionTalk.onClick.AddListener(() => gm.OnClickPlaceAction((int)PlaceActionType.Talk));
@@ -326,6 +339,9 @@ public class UIController : MonoBehaviour
         if (globalHUD) globalHUD.Refresh(state, phase);
         RefreshScheduleGrid(state);
 
+        if (textSchedulePreviewResult) 
+            textSchedulePreviewResult.text = gm.GetTotalPredictedOutcome();
+
         if (phase == GamePhase.DayMap) RefreshDayMap(state);
         if (phase == GamePhase.DayPlaceAction) RefreshPlaceAction(state);
         if (phase == GamePhase.NightChoice) RefreshNightChoice(state);
@@ -338,8 +354,6 @@ public class UIController : MonoBehaviour
         // Replaced by GlobalHUDController
     }
 
-    void RefreshScheduleGrid(GameState state)
-    {
         for (int i = 0; i < slotViews.Count; i++)
         {
             var slot = state.fighterSchedule[i];
@@ -364,7 +378,7 @@ public class UIController : MonoBehaviour
             }
 
             slotViews[i].SetDirect(label, c);
-            slotViews[i].SetProgressVisual(state.fighterSlotProgress);
+            slotViews[i].SetProgressVisual(state.fighterSlotProgress, i == selectedScheduleSlotIndex);
         }
     }
 
@@ -492,28 +506,17 @@ public class UIController : MonoBehaviour
 
     public void OnClickScheduleSlot(int index)
     {
-        if (gm != null && gm.Phase != GamePhase.ScheduleSetting) return;
-        popupTargetIndex = index;
-        if (popupSlotDropdown) popupSlotDropdown.SetActive(true);
+        selectedScheduleSlotIndex = Mathf.Clamp(index, 0, GameState.DaySlotCount - 1);
+        RefreshAll(gm.State, gm.CurrentPhase);
     }
 
-    void OnSlotTypeChosen(FighterSlotType type)
+    public void OnClickScheduleAction(int typeIndex, int statIndex = -1)
     {
-        if (popupTargetIndex < 0 || popupTargetIndex >= GameState.DaySlotCount) { CloseSlotPopup(); return; }
+        gm.SetScheduleSlot(selectedScheduleSlotIndex, (FighterSlotType)typeIndex, (TrainingStat)statIndex);
 
-        if (type == FighterSlotType.Training)
-        {
-            gm.State.fighterSchedule[popupTargetIndex].type = FighterSlotType.Training;
-            CloseSlotPopup();
-            OpenTrainingStatPopup();
-        }
-        else
-        {
-            gm.State.fighterSchedule[popupTargetIndex].type = type;
-            gm.State.fighterSchedule[popupTargetIndex].trainingStat = TrainingStat.Strength;
-            CloseSlotPopup();
-            RefreshScheduleGrid(gm.State);
-        }
+        // 자동으로 다음 슬롯 선택
+        selectedScheduleSlotIndex = (selectedScheduleSlotIndex + 1) % GameState.DaySlotCount;
+        RefreshAll(gm.State, gm.CurrentPhase);
     }
 
     void OnTrainingStatChosen(TrainingStat stat)
