@@ -155,7 +155,19 @@ public class BattlePreparationUI : MonoBehaviour
         if (panelSkill) panelSkill.SetActive(index == 2);
         if (panelOpponent) panelOpponent.SetActive(index == 3);
 
-        RefreshAll();
+        RefreshCurrentTab(index);
+        RefreshStatsPreview(); // 하단 수치는 항상 갱신
+    }
+
+    void RefreshCurrentTab(int index)
+    {
+        switch (index)
+        {
+            case 0: RefreshSchoolTab(); break;
+            case 1: RefreshEquipmentTab(); break;
+            case 2: RefreshSkillTab(); break;
+            case 3: RefreshOpponentTab(); break;
+        }
     }
 
     // ====================================================

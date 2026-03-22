@@ -25,11 +25,8 @@ public class ExplorationEventProcessor : MonoBehaviour
             return;
         }
 
-        // TODO: UI 오픈 로직 (ExplorationUIController.OpenEventPopup)
-        foreach (var choice in visibleChoices)
-        {
-            Debug.Log($"Available Choice: {choice.label}");
-        }
+        // UI 오픈 로직 (ExplorationUIController가 이 이벤트를 구독하여 팝업을 엶)
+        GameEvents.RaiseExplorationEventTriggered(node, visibleChoices);
     }
 
     private List<ExplorationChoiceData> FilterChoices(List<ExplorationChoiceData> allChoices)

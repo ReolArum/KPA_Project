@@ -11,9 +11,9 @@ public class ScheduleSlotView : MonoBehaviour
     [SerializeField] private Button button;
 
     public int Index { get; private set; }
-    UIController owner;
+    MainGameUIController owner;
 
-    public void Init(UIController owner, int index)
+    public void Init(MainGameUIController owner, int index)
     {
         this.owner = owner;
         Index = index;

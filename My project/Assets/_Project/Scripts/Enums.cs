@@ -61,16 +61,10 @@ public enum TrainingStat
     Strength,
     Agility,
     Dexterity,
-    Endurance
+    Endurance,
+    None = -1
 }
 
-// ===== 엔딩 변수 =====
-public enum EndingVar
-{
-    Reputation,
-    Sync,
-    InvestigationRate
-}
 
 // ── 탐사 관련 ──
 

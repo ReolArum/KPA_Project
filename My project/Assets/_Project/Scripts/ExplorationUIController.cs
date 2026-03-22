@@ -9,6 +9,7 @@ public class ExplorationUIController : MonoBehaviour
     [SerializeField] private TMP_Text textTime;
     [SerializeField] private TMP_Text textChoices;
     [SerializeField] private TMP_Text textGold;
+    [SerializeField] private Button btnConfirmPath; // [ADD] 경로 확정 버튼
 
     [Header("Event Popup")]
     [SerializeField] private GameObject panelEvent;
@@ -25,6 +26,10 @@ public class ExplorationUIController : MonoBehaviour
 
     [Header("Path Visuals (Prototype)")]
     [SerializeField] private LineRenderer pathRenderer;
+
+    [Header("Node Visualization")]
+    [SerializeField] private Image nodeIconPrefab; // [ADD] 노드 아이콘 프리팹 (UI용)
+    [SerializeField] private Transform nodeContainer;  // [ADD] 아이콘들이 담길 부모 오브젝트
 
     void OnEnable()
     {
@@ -47,6 +52,10 @@ public class ExplorationUIController : MonoBehaviour
         if (panelEvent) panelEvent.SetActive(false);
         if (panelResult) panelResult.SetActive(false);
         if (btnExit) btnExit.onClick.AddListener(() => ExplorationManager.Instance.ExitExploration());
+        if (btnConfirmPath) btnConfirmPath.onClick.AddListener(() => {
+            ExplorationManager.Instance.ConfirmPath();
+            btnConfirmPath.gameObject.SetActive(false);
+        });
     }
 
     void Update()
@@ -93,6 +102,32 @@ public class ExplorationUIController : MonoBehaviour
     {
         if (panelResult) panelResult.SetActive(false);
         UpdateHUD(state);
+        SpawnNodeIcons(data); // [ADD] 노드 아이콘 생성
+    }
+
+    private void SpawnNodeIcons(ExplorationStageData data)
+    {
+        if (nodeIconPrefab == null || nodeContainer == null) return;
+
+        // 기존 아이콘 제거
+        foreach (Transform child in nodeContainer)
+            Destroy(child.gameObject);
+
+        foreach (var node in data.nodes)
+        {
+            var icon = Instantiate(nodeIconPrefab, nodeContainer);
+            
+            // 월드 좌표를 스크린/UI 좌표로 변환 (간단화를 위해 가정한 방식)
+            // 실제 구현에서는 맵의 앵커와 피벗에 따라 보정이 필요할 수 있습니다.
+            icon.transform.localPosition = node.worldPosition; 
+            
+            // 툴팁이나 이름을 아이콘에 표시할 수도 있습니다.
+            var label = icon.GetComponentInChildren<TMP_Text>();
+            if (label != null) label.text = node.nodeId;
+            
+            // 이벤트 타입에 따라 색상 변경 등
+            icon.color = node.eventType == ExplorationEventType.Exit ? Color.green : Color.white;
+        }
     }
 
     private void HandleExplorationUpdated(ExplorationState state)
@@ -127,7 +162,11 @@ public class ExplorationUIController : MonoBehaviour
 
     private void HandlePhaseChanged(ExplorationPhase phase)
     {
-        if (phase == ExplorationPhase.Result)
+        if (phase == ExplorationPhase.Planning)
+        {
+            if (btnConfirmPath) btnConfirmPath.gameObject.SetActive(true);
+        }
+        else if (phase == ExplorationPhase.Result)
         {
             ShowResult(ExplorationManager.Instance.currentState);
         }

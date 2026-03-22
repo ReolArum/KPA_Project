@@ -8,7 +8,8 @@ public enum EndingVar
     CorpA,
     CorpB,
     Sync,
-    Ethics
+    Ethics,
+    InvestigationRate // Enums.cs에서 가져옴
 }
 
 [Serializable]
@@ -43,6 +44,7 @@ public class EndingVariables
         EndingVar.CorpB => "기업B 관계",
         EndingVar.Sync => "동기화",
         EndingVar.Ethics => values.ContainsKey(v) && values[v] >= 0 ? "윤리 성향" : "효율 성향",
+        EndingVar.InvestigationRate => "조사 진척도",
         _ => "?"
     };
 

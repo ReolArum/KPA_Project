@@ -1,6 +1,9 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+#if ENABLE_INPUT_SYSTEM
+using UnityEngine.InputSystem;
+#endif
 
 public class ExplorationManager : MonoBehaviour
 {
@@ -21,19 +24,76 @@ public class ExplorationManager : MonoBehaviour
         Instance = this;
     }
 
+    void Start()
+    {
+        // 씬 진입 시 자동으로 탐사 시작 (테스트용 혹은 GameManager 연동용)
+        if (stageData != null)
+        {
+            StartExploration(stageData);
+        }
+    }
+
+    void Update()
+    {
+        if (currentState.phase == ExplorationPhase.Planning)
+        {
+            HandlePlanningInput();
+        }
+    }
+
+    private void HandlePlanningInput()
+    {
+#if ENABLE_INPUT_SYSTEM
+        // New Input System
+        if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame)
+        {
+            if (UnityEngine.EventSystems.EventSystem.current != null && 
+                UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject())
+                return;
+
+            Vector2 mousePos = Mouse.current.position.ReadValue();
+            Ray ray = Camera.main.ScreenPointToRay(mousePos);
+            // 2D 평면(Z=0)과의 교점 계산
+            float distance = -Camera.main.transform.position.z / ray.direction.z;
+            Vector3 worldPos = ray.GetPoint(distance);
+            worldPos.z = 0;
+
+            AddWaypoint(worldPos);
+            GameEvents.RaiseExplorationUpdated(currentState);
+        }
+#else
+        // Legacy Input (혹은 Both 설정인 경우 대비)
+        if (Input.GetMouseButtonDown(0))
+        {
+            if (UnityEngine.EventSystems.EventSystem.current != null && 
+                UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject())
+                return;
+
+            Vector3 mousePos = Input.mousePosition;
+            mousePos.z = 10f; 
+            Vector3 worldPos = Camera.main.ScreenToWorldPoint(mousePos);
+            worldPos.z = 0;
+
+            AddWaypoint(worldPos);
+            GameEvents.RaiseExplorationUpdated(currentState);
+        }
+#endif
+    }
+
     public void StartExploration(ExplorationStageData data)
     {
         stageData = data;
         currentState.Reset(data.limitTime, data.maxChoices);
         
         GameEvents.RaiseActionResult($"탐사 시작: {data.stageName}");
+        GameEvents.RaiseExplorationStarted(data, currentState); // [ADD] UI 시작 이벤트
         SetPhase(ExplorationPhase.Planning);
     }
 
     private void SetPhase(ExplorationPhase nextPhase)
     {
         currentState.phase = nextPhase;
-        // 필요 시 전용 이벤트 발생 (예: GameEvents.RaiseExplorationPhaseChanged)
+        GameEvents.RaiseExplorationPhaseChanged(nextPhase); // [ADD] 페이즈 변경 이벤트
         Debug.Log($"Exploration Phase Changed: {nextPhase}");
     }
 
@@ -83,6 +143,7 @@ public class ExplorationManager : MonoBehaviour
                 
                 // 시간 소모
                 ConsumeTime(Time.deltaTime * timeScale);
+                GameEvents.RaiseExplorationUpdated(currentState); // [ADD] 이동 중 UI 갱신 (시간/위치 등)
 
                 if (currentState.remainingTime <= 0)
                 {

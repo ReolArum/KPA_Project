@@ -46,6 +46,11 @@ public class Proficiency
             exp -= ExpThresholds[level];
             level++;
             leveled = true;
+            if (level >= 5)
+            {
+                exp = 0;
+                break;
+            }
         }
 
         if (level >= 5) exp = 0; // 만렙이면 잔여 exp 리셋
