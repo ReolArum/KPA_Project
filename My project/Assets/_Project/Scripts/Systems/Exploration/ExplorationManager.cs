@@ -4,6 +4,7 @@ using UnityEngine;
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
 #endif
+using UnityEngine.AI;
 
 public class ExplorationManager : MonoBehaviour
 {
@@ -17,7 +18,14 @@ public class ExplorationManager : MonoBehaviour
     public ExplorationStageData stageData;
     public ExplorationState currentState = new ExplorationState();
 
+    [Header("Drawing Settings")]
+    public LayerMask groundLayer;
+    public LayerMask obstacleLayer;
+    public float drawThreshold = 0.5f; // 점 사이의 최소 거리
+
     private Coroutine movementCoroutine;
+    private bool isDrawing = false;
+    private Vector3 lastAddedPoint;
 
     void Awake()
     {
@@ -43,41 +51,145 @@ public class ExplorationManager : MonoBehaviour
 
     private void HandlePlanningInput()
     {
-#if ENABLE_INPUT_SYSTEM
-        // New Input System
-        if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame)
-        {
-            if (UnityEngine.EventSystems.EventSystem.current != null && 
-                UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject())
-                return;
-
-            Vector2 mousePos = Mouse.current.position.ReadValue();
-            Ray ray = Camera.main.ScreenPointToRay(mousePos);
-            // 2D 평면(Z=0)과의 교점 계산
-            float distance = -Camera.main.transform.position.z / ray.direction.z;
-            Vector3 worldPos = ray.GetPoint(distance);
-            worldPos.z = 0;
-
-            AddWaypoint(worldPos);
-            GameEvents.RaiseExplorationUpdated(currentState);
-        }
-#else
-        // Legacy Input (혹은 Both 설정인 경우 대비)
+        // 1. 좌클릭: 그리기 시작 및 드래그
         if (Input.GetMouseButtonDown(0))
         {
-            if (UnityEngine.EventSystems.EventSystem.current != null && 
-                UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject())
-                return;
+            StartDrawing();
+        }
+        else if (Input.GetMouseButton(0) && isDrawing)
+        {
+            UpdateDrawing();
+        }
+        else if (Input.GetMouseButtonUp(0))
+        {
+            isDrawing = false;
+        }
 
-            Vector3 mousePos = Input.mousePosition;
-            mousePos.z = 10f; 
-            Vector3 worldPos = Camera.main.ScreenToWorldPoint(mousePos);
-            worldPos.z = 0;
+        // 2. 우클릭: 실행 취소 (마지막 세그먼트 삭제)
+        if (Input.GetMouseButtonDown(1))
+        {
+            UndoLastSegment();
+        }
+    }
 
-            AddWaypoint(worldPos);
+    private void StartDrawing()
+    {
+        if (UnityEngine.EventSystems.EventSystem.current != null && 
+            UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject())
+            return;
+
+        Vector3 hitPos;
+        if (TryGetMouseWorldPosition(out hitPos))
+        {
+            isDrawing = true;
+            
+            // 새 세그먼트 시작
+            List<Vector3> newSegment = new List<Vector3>();
+            
+            // 이전 마지막 지점이 있다면 최단 경로로 연결
+            Vector3 startPoint = GetLastPathPoint();
+            if (Vector3.Distance(startPoint, hitPos) > 0.1f)
+            {
+                var navPath = CalculateNavMeshPath(startPoint, hitPos);
+                newSegment.AddRange(navPath);
+            }
+            else
+            {
+                newSegment.Add(hitPos);
+            }
+
+            currentState.pathSegments.Add(newSegment);
+            lastAddedPoint = hitPos;
             GameEvents.RaiseExplorationUpdated(currentState);
         }
-#endif
+    }
+
+    private void UpdateDrawing()
+    {
+        Vector3 hitPos;
+        if (TryGetMouseWorldPosition(out hitPos))
+        {
+            // 벽(Obstacle) 충돌 체크
+            if (IsPathBlocked(lastAddedPoint, hitPos))
+            {
+                isDrawing = false; // 벽에 닿으면 그리기 중단
+                Debug.Log("Path blocked by obstacle!");
+                return;
+            }
+
+            // 일정 거리 이상 움직였을 때만 점 추가
+            if (Vector3.Distance(lastAddedPoint, hitPos) > drawThreshold)
+            {
+                if (currentState.pathSegments.Count > 0)
+                {
+                    currentState.pathSegments[currentState.pathSegments.Count - 1].Add(hitPos);
+                    lastAddedPoint = hitPos;
+                    GameEvents.RaiseExplorationUpdated(currentState);
+                }
+            }
+        }
+    }
+
+    private void UndoLastSegment()
+    {
+        if (currentState.pathSegments.Count > 0)
+        {
+            currentState.pathSegments.RemoveAt(currentState.pathSegments.Count - 1);
+            GameEvents.RaiseExplorationUpdated(currentState);
+            GameEvents.RaiseActionResult("마지막 경로 구간을 취소했습니다.");
+        }
+    }
+
+    private bool TryGetMouseWorldPosition(out Vector3 position)
+    {
+        position = Vector3.zero;
+        Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+        if (Physics.Raycast(ray, out RaycastHit hit, 100f, groundLayer))
+        {
+            position = hit.point;
+            position.y = 0; // 평면 유지
+            return true;
+        }
+        return false;
+    }
+
+    private Vector3 GetLastPathPoint()
+    {
+        if (currentState.pathSegments.Count > 0)
+        {
+            var lastSegment = currentState.pathSegments[currentState.pathSegments.Count - 1];
+            if (lastSegment.Count > 0) return lastSegment[lastSegment.Count - 1];
+        }
+        return currentState.currentPosition;
+    }
+
+    private List<Vector3> CalculateNavMeshPath(Vector3 start, Vector3 end)
+    {
+        NavMeshPath path = new NavMeshPath();
+        List<Vector3> points = new List<Vector3>();
+        if (NavMesh.CalculatePath(start, end, NavMesh.AllAreas, path))
+        {
+            foreach (var corner in path.corners)
+            {
+                Vector3 p = corner;
+                p.y = 0;
+                points.Add(p);
+            }
+        }
+        else
+        {
+            // 경로를 못 찾으면 직선으로 (혹은 에러 처리)
+            points.Add(end);
+        }
+        return points;
+    }
+
+    private bool IsPathBlocked(Vector3 start, Vector3 end)
+    {
+        // 간단한 레이캐스트로 장애물 확인
+        Vector3 direction = end - start;
+        float distance = direction.magnitude;
+        return Physics.Raycast(start + Vector3.up * 0.5f, direction, distance, obstacleLayer);
     }
 
     public void StartExploration(ExplorationStageData data)
@@ -112,13 +224,22 @@ public class ExplorationManager : MonoBehaviour
     public void ClearPath()
     {
         if (currentState.phase != ExplorationPhase.Planning) return;
+        currentState.pathSegments.Clear();
         currentState.plannedPath.Clear();
+        GameEvents.RaiseExplorationUpdated(currentState);
     }
 
     public void ConfirmPath()
     {
         if (currentState.phase != ExplorationPhase.Planning) return;
-        if (currentState.plannedPath.Count == 0) return;
+        if (currentState.pathSegments.Count == 0) return;
+
+        // 세그먼트들을 하나의 연속된 path로 병합
+        currentState.plannedPath.Clear();
+        foreach (var segment in currentState.pathSegments)
+        {
+            currentState.plannedPath.AddRange(segment);
+        }
 
         SetPhase(ExplorationPhase.Moving);
         movementCoroutine = StartCoroutine(MovementRoutine());
@@ -231,12 +352,14 @@ public class ExplorationManager : MonoBehaviour
         }
 
         GameEvents.RaiseActionResult($"탐사 성공! {currentState.collectedGold}G 획득");
+        SaveSystem.Save(state);
     }
 
     public void OnExplorationFailed(string reason)
     {
         SetPhase(ExplorationPhase.Result);
         GameEvents.RaiseActionResult($"탐사 실패: {reason}");
+        SaveSystem.Save(GameManager.Instance.State);
     }
 
     public void ExitExploration()

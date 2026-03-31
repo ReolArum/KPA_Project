@@ -247,6 +247,12 @@ public class GameManager : MonoBehaviour
 
     public void OnClickApplyYesterdaySchedule()
     {
+        for (int i = 0; i < State.fighterSchedule.Length; i++)
+        {
+            State.fighterSchedule[i].type = State.yesterdaySchedule[i].type;
+            State.fighterSchedule[i].trainingStat = State.yesterdaySchedule[i].trainingStat;
+        }
+
         GameEvents.RaiseActionResult("어제와 동일한 스케줄을 적용했습니다.");
         GameEvents.RaiseGameStateChanged(State);
     }
@@ -256,7 +262,7 @@ public class GameManager : MonoBehaviour
         for (int i = 0; i < State.fighterSchedule.Length; i++)
         {
             State.fighterSchedule[i].type = FighterSlotType.Rest;
-            State.fighterSchedule[i].trainingStat = TrainingStat.None;
+            State.fighterSchedule[i].trainingStat = TrainingStat.Strength; // None 대신 Strength로 기본 설정
         }
         GameEvents.RaiseActionResult("스케줄을 초기화했습니다.");
         GameEvents.RaiseGameStateChanged(State);

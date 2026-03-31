@@ -11,11 +11,9 @@ public class ExplorationState
     // 획득한 특수 오브젝트/단서 ID 리스트
     public List<string> foundObjectIds = new List<string>();
 
-    // 현재 플레이어의 위치 (노드 인덱스 또는 좌표)
-    public Vector3 currentPosition;
-    public int     currentNodeIndex = 0;
-
-    // 경로 계획 리스트 (플레이어가 드래그한 좌표들)
+    // 경로 계획 리스트 (세그먼트 단위: 드래그 시 생성된 점들의 묶음들)
+    public List<List<Vector3>> pathSegments = new List<List<Vector3>>();
+    // 실제 이동을 위해 직렬화된 전체 경로
     public List<Vector3> plannedPath = new List<Vector3>();
 
     public ExplorationPhase phase = ExplorationPhase.Planning;

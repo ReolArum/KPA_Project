@@ -106,6 +106,18 @@ public static class SaveSystem
         public int  nightChoice;
         public bool nightCompleted;
 
+        // ── [NEW] 장소/상태 ──
+        public int   facilityUpgradeLevel;
+        public bool  dailyRerollUsed;
+        public float trainingEfficiency;
+
+        // ── [NEW] 탐사 결과 ──
+        public int      explorationGoldTotal;
+        public string[] explorationFoundKeys;
+
+        // ── [NEW] 어제 스케줄 ──
+        public FighterSlotDto[] yesterdaySchedule;
+
         // ── 훈련 스탯 ──
         public StatDto[] stats;
 
@@ -148,7 +160,14 @@ public static class SaveSystem
             playerActionsUsed    = state.playerActionsUsed,
             playerLocation       = (int)state.playerLocation,
             nightChoice          = (int)state.nightChoice,
-            nightCompleted       = state.nightCompleted
+            nightCompleted       = state.nightCompleted,
+
+            // [NEW]
+            facilityUpgradeLevel = state.facilityUpgradeLevel,
+            dailyRerollUsed     = state.dailyRerollUsed,
+            trainingEfficiency   = state.trainingEfficiency,
+            explorationGoldTotal = state.explorationGoldTotal,
+            explorationFoundKeys = state.explorationFoundKeys.ToArray()
         };
 
         // 전투체 스케줄
@@ -159,6 +178,17 @@ public static class SaveSystem
             {
                 type        = (int)state.fighterSchedule[i].type,
                 trainingStat = (int)state.fighterSchedule[i].trainingStat
+            };
+        }
+
+        // [NEW] 어제 스케줄
+        data.yesterdaySchedule = new FighterSlotDto[GameState.DaySlotCount];
+        for (int i = 0; i < GameState.DaySlotCount; i++)
+        {
+            data.yesterdaySchedule[i] = new FighterSlotDto
+            {
+                type        = (int)state.yesterdaySchedule[i].type,
+                trainingStat = (int)state.yesterdaySchedule[i].trainingStat
             };
         }
 
@@ -246,6 +276,13 @@ public static class SaveSystem
         state.nightChoice       = (NightActionType)data.nightChoice;
         state.nightCompleted    = data.nightCompleted;
 
+        // [NEW]
+        state.facilityUpgradeLevel = data.facilityUpgradeLevel;
+        state.dailyRerollUsed     = data.dailyRerollUsed;
+        state.trainingEfficiency   = data.trainingEfficiency;
+        state.explorationGoldTotal = data.explorationGoldTotal;
+        state.explorationFoundKeys = new List<string>(data.explorationFoundKeys ?? new string[0]);
+
         // 전투체 스케줄
         if (data.fighterSchedule != null)
         {
@@ -253,6 +290,16 @@ public static class SaveSystem
             {
                 state.fighterSchedule[i].type         = (FighterSlotType)data.fighterSchedule[i].type;
                 state.fighterSchedule[i].trainingStat = (TrainingStat)data.fighterSchedule[i].trainingStat;
+            }
+        }
+
+        // [NEW] 어제 스케줄
+        if (data.yesterdaySchedule != null)
+        {
+            for (int i = 0; i < data.yesterdaySchedule.Length && i < GameState.DaySlotCount; i++)
+            {
+                state.yesterdaySchedule[i].type         = (FighterSlotType)data.yesterdaySchedule[i].type;
+                state.yesterdaySchedule[i].trainingStat = (TrainingStat)data.yesterdaySchedule[i].trainingStat;
             }
         }
 

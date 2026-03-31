@@ -24,6 +24,7 @@ public class GameState
 
     // ===== 전투체 스케줄 =====
     public FighterSlot[] fighterSchedule;
+    public FighterSlot[] yesterdaySchedule; // [NEW] 어제 스케줄 백업용
     public int fighterSlotProgress = 0;
 
     // [NEW] 장소별 시설/상태 데이터
@@ -82,8 +83,12 @@ public class GameState
             proficiencies[p] = new Proficiency();
 
         fighterSchedule = new FighterSlot[DaySlotCount];
+        yesterdaySchedule = new FighterSlot[DaySlotCount];
         for (int i = 0; i < DaySlotCount; i++)
+        {
             fighterSchedule[i] = new FighterSlot();
+            yesterdaySchedule[i] = new FighterSlot();
+        }
     }
 
     // ===== 스탯 접근 =====
@@ -147,6 +152,13 @@ public class GameState
     // ===== 하루 리셋 =====
     public void ResetForNewDay()
     {
+        // [NEW] 하루가 넘어가기 전 현재 스케줄을 '어제 스케줄'로 백업
+        for (int i = 0; i < DaySlotCount; i++)
+        {
+            yesterdaySchedule[i].type = fighterSchedule[i].type;
+            yesterdaySchedule[i].trainingStat = fighterSchedule[i].trainingStat;
+        }
+
         day++;
         fighterSlotProgress = 0;
         playerActionsUsed = 0;
@@ -185,8 +197,12 @@ public class GameState
             proficiencies[p] = new Proficiency();
 
         fighterSchedule = new FighterSlot[DaySlotCount];
+        yesterdaySchedule = new FighterSlot[DaySlotCount];
         for (int i = 0; i < DaySlotCount; i++)
+        {
             fighterSchedule[i] = new FighterSlot();
+            yesterdaySchedule[i] = new FighterSlot();
+        }
 
         endingVars = new EndingVariables();
         arena = new ArenaSystem();
