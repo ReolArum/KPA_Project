@@ -34,6 +34,15 @@ public static class GameEvents
     public static event Action<ExplorationPhase> OnExplorationPhaseChanged;
     public static void RaiseExplorationPhaseChanged(ExplorationPhase p) => OnExplorationPhaseChanged?.Invoke(p);
 
+    public static event Action<string> OnExplorationClueFound;
+    public static void RaiseExplorationClueFound(string clueId) => OnExplorationClueFound?.Invoke(clueId);
+
+    public static event Action<List<VNDialogueStep>, Action> OnExplorationVNStarted;
+    public static void RaiseExplorationVNStarted(List<VNDialogueStep> steps, Action onComplete) => OnExplorationVNStarted?.Invoke(steps, onComplete);
+
+    public static event Action<string, bool> OnExplorationInteractionPrompt;
+    public static void RaiseExplorationInteractionPrompt(string prompt, bool show) => OnExplorationInteractionPrompt?.Invoke(prompt, show);
+
     // ── 알림 및 메시지 ──
     //  행동 결과 메시지
     // ====================================================

@@ -13,6 +13,7 @@ public class ExplorationManager : MonoBehaviour
     [Header("Settings")]
     public float moveSpeed = 5f;
     public float timeScale = 1.0f; // 시간 소모 배율
+    public KeyCode interactKey = KeyCode.E; // [ADD] 상호작용 키
 
     [Header("Current Session")]
     public ExplorationStageData stageData;
@@ -41,11 +42,26 @@ public class ExplorationManager : MonoBehaviour
         }
     }
 
+    private ExplorationNodeData nearInteractionNode;
+
     void Update()
     {
         if (currentState.phase == ExplorationPhase.Planning)
         {
             HandlePlanningInput();
+        }
+        else if (currentState.phase == ExplorationPhase.Moving)
+        {
+            HandleMovingInput();
+        }
+    }
+
+    private void HandleMovingInput()
+    {
+        // 상호작용 키 (기본 E) 감지
+        if (Input.GetKeyDown(interactKey) && nearInteractionNode != null)
+        {
+            TriggerEvent(nearInteractionNode);
         }
     }
 
@@ -242,6 +258,7 @@ public class ExplorationManager : MonoBehaviour
         }
 
         SetPhase(ExplorationPhase.Moving);
+        if (movementCoroutine != null) StopCoroutine(movementCoroutine); // [ADD] 기존이동 코루틴 정지
         movementCoroutine = StartCoroutine(MovementRoutine());
     }
 
@@ -264,7 +281,10 @@ public class ExplorationManager : MonoBehaviour
                 
                 // 시간 소모
                 ConsumeTime(Time.deltaTime * timeScale);
-                GameEvents.RaiseExplorationUpdated(currentState); // [ADD] 이동 중 UI 갱신 (시간/위치 등)
+                GameEvents.RaiseExplorationUpdated(currentState);
+
+                // [ADD] 실시간 범위 감지 (단서 및 상호작용)
+                ScanNearbyNodes();
 
                 if (currentState.remainingTime <= 0)
                 {
@@ -275,7 +295,7 @@ public class ExplorationManager : MonoBehaviour
                 yield return null;
             }
 
-            // 노드 도달
+            // 노드 도달 (경로 점 도달 시)
             currentState.plannedPath.RemoveAt(0);
             CheckForEventAtCurrentPosition();
 
@@ -286,10 +306,50 @@ public class ExplorationManager : MonoBehaviour
             }
         }
 
-        // 경로 끝 도달 시 다시 계획 단계로 (기획서에 따라 다를 수 있음)
+        // 모든 경로 점을 소모한 후
         if (currentState.phase != ExplorationPhase.Result)
         {
             SetPhase(ExplorationPhase.Planning);
+        }
+    }
+
+    private void ScanNearbyNodes()
+    {
+        nearInteractionNode = null;
+        bool promptShown = false;
+
+        foreach (var node in stageData.nodes)
+        {
+            Vector3 diff = currentState.currentPosition - node.worldPosition;
+            float distSqr = diff.sqrMagnitude; // [OPT] 제곱 거리 사용
+
+            // 1. 단서 자동 획득 (Clue Auto-collect)
+            if (node.eventType == ExplorationEventType.Hazard && !currentState.foundObjectIds.Contains(node.nodeId))
+            {
+                float rangeSqr = node.clueRange * node.clueRange;
+                if (distSqr <= rangeSqr)
+                {
+                    currentState.foundObjectIds.Add(node.nodeId);
+                    GameEvents.RaiseExplorationClueFound(node.nodeName ?? node.nodeId);
+                }
+            }
+
+            // 2. 상호작용 범위 체크 (Interaction Prompt)
+            if (node.eventType == ExplorationEventType.Exit)
+            {
+                float rangeSqr = node.interactionRange * node.interactionRange;
+                if (distSqr <= rangeSqr)
+                {
+                    nearInteractionNode = node;
+                    GameEvents.RaiseExplorationInteractionPrompt(node.interactPrompt, true);
+                    promptShown = true;
+                }
+            }
+        }
+
+        if (!promptShown)
+        {
+            GameEvents.RaiseExplorationInteractionPrompt("", false);
         }
     }
 
@@ -300,14 +360,16 @@ public class ExplorationManager : MonoBehaviour
 
     private void CheckForEventAtCurrentPosition()
     {
-        // 1. 트리거 콜라이더 기반 혹은 거리 기반으로 이벤트 체크
-        // 여기선 단순화를 위해 stageData의 노드 중 가장 가까운 노드 체크
         foreach (var node in stageData.nodes)
         {
             if (Vector3.Distance(currentState.currentPosition, node.worldPosition) < 0.5f)
             {
-                TriggerEvent(node);
-                break;
+                // 일반 이벤트 노드는 밟으면 즉시 발동
+                if (node.eventType == ExplorationEventType.Hazard || node.eventType == ExplorationEventType.Exit)
+                {
+                    TriggerEvent(node);
+                    break;
+                }
             }
         }
     }
@@ -321,14 +383,43 @@ public class ExplorationManager : MonoBehaviour
         if (node.eventType == ExplorationEventType.None) return;
         
         SetPhase(ExplorationPhase.EventProcessing);
-        ExplorationEventProcessor.Instance.ProcessEvent(node);
+
+        // [New] VN 컷씬 연출이 먼저 있다면 실행
+        if (node.vnSequence != null && node.vnSequence.Count > 0)
+        {
+            GameEvents.RaiseExplorationVNStarted(node.vnSequence, () => {
+                // VN 종료 후 선택지 팝업
+                ExplorationEventProcessor.Instance.ProcessEvent(node);
+            });
+        }
+        else
+        {
+            ExplorationEventProcessor.Instance.ProcessEvent(node);
+        }
     }
 
-    public void ResumeMovement()
+    public void ResumeMovement(bool shouldRedraw = false)
     {
         if (currentState.phase == ExplorationPhase.EventProcessing)
         {
-            SetPhase(ExplorationPhase.Moving);
+            if (shouldRedraw)
+            {
+                // [FIX] 경로 재작성 시 기존 이동 코루틴을 확실히 중지
+                if (movementCoroutine != null)
+                {
+                    StopCoroutine(movementCoroutine);
+                    movementCoroutine = null;
+                }
+
+                currentState.plannedPath.Clear();
+                currentState.pathSegments.Clear();
+                SetPhase(ExplorationPhase.Planning);
+                GameEvents.RaiseExplorationUpdated(currentState);
+            }
+            else
+            {
+                SetPhase(ExplorationPhase.Moving);
+            }
         }
     }
 

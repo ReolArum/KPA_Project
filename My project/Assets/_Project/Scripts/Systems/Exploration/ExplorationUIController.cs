@@ -37,12 +37,35 @@ public class ExplorationUIController : MonoBehaviour
     [SerializeField] private Transform nodeContainer;  // [ADD] 아이콘들이 담길 부모 오브젝트
     [SerializeField] private Color interactiveHighlightColor = Color.yellow;
 
+    [Header("Visual Novel (VN) Mode")]
+    [SerializeField] private GameObject  panelVN;
+    [SerializeField] private TMP_Text    textVNName;
+    [SerializeField] private TMP_Text    textVNDialogue;
+    [SerializeField] private Image       imgVNLeft;
+    [SerializeField] private Image       imgVNRight;
+    [SerializeField] private Image       imgVNBackground;
+    [SerializeField] private Button      btnVNDialogueBox; // [ADD] 대화 상자 클릭 버튼
+    private List<VNDialogueStep> currentVNSteps;
+    private int                  currentVNIndex;
+    private System.Action        onVNComplete;
+
+    [Header("Interaction & Clues")]
+    [SerializeField] private GameObject panelInteractPrompt;
+    [SerializeField] private TMP_Text   textInteractPrompt;
+    [SerializeField] private GameObject panelClueList;
+    [SerializeField] private Transform  clueListContent;
+    [SerializeField] private GameObject clueItemPrefab; // [ADD] 단서 항목 프리팹
+    [SerializeField] private Button     btnToggleClueList;
+
     void OnEnable()
     {
         GameEvents.OnExplorationStarted += HandleExplorationStarted;
         GameEvents.OnExplorationUpdated += HandleExplorationUpdated;
         GameEvents.OnExplorationEventTriggered += HandleEventTriggered;
         GameEvents.OnExplorationPhaseChanged += HandlePhaseChanged;
+        GameEvents.OnExplorationClueFound += HandleClueFound;
+        GameEvents.OnExplorationVNStarted += HandleVNStarted;
+        GameEvents.OnExplorationInteractionPrompt += HandleInteractionPrompt;
     }
 
     void OnDisable()
@@ -51,12 +74,17 @@ public class ExplorationUIController : MonoBehaviour
         GameEvents.OnExplorationUpdated -= HandleExplorationUpdated;
         GameEvents.OnExplorationEventTriggered -= HandleEventTriggered;
         GameEvents.OnExplorationPhaseChanged -= HandlePhaseChanged;
+        GameEvents.OnExplorationClueFound -= HandleClueFound;
+        GameEvents.OnExplorationVNStarted -= HandleVNStarted;
+        GameEvents.OnExplorationInteractionPrompt -= HandleInteractionPrompt;
     }
 
     private void Start()
     {
         if (panelEvent) panelEvent.SetActive(false);
         if (panelResult) panelResult.SetActive(false);
+        if (panelVN)     panelVN.SetActive(false);
+        
         if (btnExit) btnExit.onClick.AddListener(() => ExplorationManager.Instance.ExitExploration());
         
         if (btnConfirmPath) 
@@ -67,7 +95,16 @@ public class ExplorationUIController : MonoBehaviour
             });
         }
 
-        // 초기 카메라 설정 (Planning 단계이므로 Top-view)
+        // [ADD] 단서 목록 토글 리스너
+        if (btnToggleClueList && panelClueList)
+        {
+            btnToggleClueList.onClick.AddListener(() => panelClueList.SetActive(!panelClueList.activeSelf));
+        }
+
+        if (panelResult) panelResult.SetActive(false);
+        if (panelClueList) panelClueList.SetActive(false);
+
+        // 초기 카메라 설정
         if (camTop && camQuarter)
         {
             camTop.enabled = true;
@@ -77,12 +114,13 @@ public class ExplorationUIController : MonoBehaviour
 
     void Update()
     {
-        // 실시간 업데이트 (UI 프리팹이 붙어있다면 매 프레임 ExplorationManager 데이터를 읽음)
-        if (ExplorationManager.Instance != null && ExplorationManager.Instance.currentState.phase != ExplorationPhase.Result)
-        {
-            UpdateHUD(ExplorationManager.Instance.currentState);
-            UpdatePathVisuals(ExplorationManager.Instance.currentState);
-        }
+        // 최적화: 매 프레임 UI 작업을 수행하지 않음 (이벤트 기반으로 대체)
+    }
+
+    private void HandleExplorationUpdated(ExplorationState state)
+    {
+        UpdateHUD(state);
+        UpdatePathVisuals(state);
     }
 
     private void UpdateHUD(ExplorationState state)
@@ -101,6 +139,103 @@ public class ExplorationUIController : MonoBehaviour
         }
 
         if (textGold) textGold.text = $"{state.collectedGold} G";
+    }
+
+    private void HandleVNStarted(List<VNDialogueStep> steps, System.Action onComplete)
+    {
+        currentVNSteps = steps;
+        currentVNIndex = 0;
+        this.onVNComplete = onComplete;
+        
+        if (panelVN)
+        {
+            panelVN.SetActive(true);
+            ShowVNStep(0);
+        }
+        else
+        {
+            onComplete?.Invoke();
+        }
+    }
+
+    private void ShowVNStep(int index)
+    {
+        if (index < 0 || index >= currentVNSteps.Count) return;
+
+        var step = currentVNSteps[index];
+        if (textVNName) textVNName.text = step.characterName;
+        if (textVNDialogue) textVNDialogue.text = step.dialogueText;
+        
+        // [FIX] 단계 전환 시 이전 스프라이트 잔상 방지
+        if (imgVNLeft) 
+        {
+            imgVNLeft.sprite = step.leftSprite;
+            imgVNLeft.gameObject.SetActive(step.leftSprite != null);
+        }
+        if (imgVNRight) 
+        {
+            imgVNRight.sprite = step.rightSprite;
+            imgVNRight.gameObject.SetActive(step.rightSprite != null);
+        }
+        if (imgVNBackground && step.backgroundOverride != null) 
+        {
+            imgVNBackground.sprite = step.backgroundOverride;
+        }
+    }
+
+    public void OnVNClick() // 버튼이나 Update에서 호출
+    {
+        currentVNIndex++;
+        if (currentVNIndex >= currentVNSteps.Count)
+        {
+            panelVN.SetActive(false);
+            onVNComplete?.Invoke();
+        }
+        else
+        {
+            ShowVNStep(currentVNIndex);
+        }
+    }
+
+    private void HandleInteractionPrompt(string prompt, bool show)
+    {
+        if (panelInteractPrompt)
+        {
+            panelInteractPrompt.SetActive(show);
+            if (show && textInteractPrompt)
+            {
+                // 현재 매핑된 키를 가져와서 표시 (기본 E)
+                string keyName = ExplorationManager.Instance != null ? ExplorationManager.Instance.interactKey.ToString() : "E";
+                textInteractPrompt.text = $"[{keyName}] {prompt}";
+            }
+        }
+    }
+
+    private void HandleClueFound(string clueId)
+    {
+        // 알림 표시
+        GameEvents.RaiseActionResult($"단서 발견: {clueId}");
+        
+        // 목록 갱신
+        RefreshClueList();
+    }
+
+    private void RefreshClueList()
+    {
+        if (clueListContent == null || clueItemPrefab == null) return;
+
+        // 기존 항목 제거
+        foreach (Transform child in clueListContent)
+            Destroy(child.gameObject);
+
+        // 현재 획득한 단서들 생성
+        var foundIds = ExplorationManager.Instance.currentState.foundObjectIds;
+        foreach (var id in foundIds)
+        {
+            var item = Instantiate(clueItemPrefab, clueListContent);
+            var label = item.GetComponentInChildren<TMP_Text>();
+            if (label) label.text = id;
+        }
     }
 
     private void UpdatePathVisuals(ExplorationState state)

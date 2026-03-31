@@ -70,6 +70,10 @@ public class ExplorationEventProcessor : MonoBehaviour
                 case ExplorationRequirement.RequirementType.HasEnvObject:
                     if (!expState.foundObjectIds.Contains(req.targetId)) return false;
                     break;
+
+                case ExplorationRequirement.RequirementType.HasClue:
+                    if (!expState.foundObjectIds.Contains(req.targetId)) return false;
+                    break;
             }
         }
         return true;
@@ -92,12 +96,17 @@ public class ExplorationEventProcessor : MonoBehaviour
         expState.collectedGold += choice.goldReward;
         if (!string.IsNullOrEmpty(choice.rewardObjectId))
         {
-            expState.foundObjectIds.Add(choice.rewardObjectId);
+            // 중복 획득 방지
+            if (!expState.foundObjectIds.Contains(choice.rewardObjectId))
+            {
+                expState.foundObjectIds.Add(choice.rewardObjectId);
+                GameEvents.RaiseExplorationClueFound(choice.rewardObjectId);
+            }
         }
 
-        Debug.Log($"Choice Applied: {choice.label}. Time Penalty: {choice.timePenalty}, Reward Gold: {choice.goldReward}");
+        Debug.Log($"Choice Applied: {choice.label}. Redraw: {choice.shouldRedrawPath}");
 
-        // 4. 탐사 재개
-        ExplorationManager.Instance.ResumeMovement();
+        // 4. 탐사 재개 (경로 재작성 여부 전달)
+        ExplorationManager.Instance.ResumeMovement(choice.shouldRedrawPath);
     }
 }
