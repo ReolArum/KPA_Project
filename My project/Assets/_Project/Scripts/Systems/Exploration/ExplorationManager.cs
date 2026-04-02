@@ -23,6 +23,7 @@ public class ExplorationManager : MonoBehaviour
     public LayerMask groundLayer;
     public LayerMask obstacleLayer;
     public float drawThreshold = 0.5f; // 점 사이의 최소 거리
+    public Transform playerTransform;  // [ADD] 실제 캐릭터 모델 트랜스폼
 
     private Coroutine movementCoroutine;
     private bool isDrawing = false;
@@ -211,7 +212,13 @@ public class ExplorationManager : MonoBehaviour
     public void StartExploration(ExplorationStageData data)
     {
         stageData = data;
-        currentState.Reset(data.limitTime, data.maxChoices);
+        currentState.Reset(data.limitTime, data.maxChoices, data.startPosition);
+        
+        // [ADD] 플레이어 비주얼 위치 동기화 (Snap)
+        if (playerTransform != null)
+        {
+            playerTransform.position = data.startPosition;
+        }
         
         GameEvents.RaiseActionResult($"탐사 시작: {data.stageName}");
         GameEvents.RaiseExplorationStarted(data, currentState); // [ADD] UI 시작 이벤트
@@ -282,6 +289,12 @@ public class ExplorationManager : MonoBehaviour
                 // 시간 소모
                 ConsumeTime(Time.deltaTime * timeScale);
                 GameEvents.RaiseExplorationUpdated(currentState);
+
+                // [ADD] 플레이어 비주얼 위치 실시간 동기화
+                if (playerTransform != null)
+                {
+                    playerTransform.position = currentState.currentPosition;
+                }
 
                 // [ADD] 실시간 범위 감지 (단서 및 상호작용)
                 ScanNearbyNodes();

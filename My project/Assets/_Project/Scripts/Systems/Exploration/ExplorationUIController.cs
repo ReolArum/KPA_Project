@@ -311,11 +311,6 @@ public class ExplorationUIController : MonoBehaviour
         }
     }
 
-    private void HandleExplorationUpdated(ExplorationState state)
-    {
-        UpdateHUD(state);
-    }
-
     private void HandleEventTriggered(ExplorationNodeData node, List<ExplorationChoiceData> visibleChoices)
     {
         if (panelEvent == null) return;
@@ -381,12 +376,11 @@ public class ExplorationUIController : MonoBehaviour
         while (elapsed < camTransitionDuration)
         {
             elapsed += Time.deltaTime;
-            float t = elapsed / camTransitionDuration;
-            t = Mathf.SmoothStep(0, 1, t);
-
-            // 메인 카메라가 있다면 해당 카메라를 움직이거나, 두 카메라의 가중치로 연출
-            // 이 예시에서는 to 카메라를 활성화하고 시점을 부드럽게 전환하는 시뮬레이션을 수행
-            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / camTransitionDuration);
+            
+            // [Future Improvement] 렌더 텍스처나 시네머신 혼합이 없을 경우, 
+            // 여기에서 메인 카메라의 FOV나 위치를 보간하여 시각적 연속성을 줄 수 있습니다.
+            
             yield return null;
         }
 

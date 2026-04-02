@@ -7,6 +7,7 @@ public class ExplorationStageData : ScriptableObject
     public string stageName;
     public float  limitTime = 120f;   // 기본 2분
     public int    maxChoices = 5;     // -1이면 무제한 (유저 요청: 유연한 설계)
+    public Vector3 startPosition;     // [ADD] 탐사 시작 지점
 
     [Header("Map Visuals")]
     public Sprite blueprintSprite;    // 지도 배경 (청사진)
