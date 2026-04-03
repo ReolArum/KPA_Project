@@ -38,6 +38,10 @@ public class ExplorationNodeData
 
     [Header("Choices (Displayed if type matches)")]
     public List<ExplorationChoiceData> choices = new List<ExplorationChoiceData>();
+
+    [Header("Force Penalty (If no choices available)")]
+    public float forcePenaltyTime = 10f; // 강제 차감 시간
+    public int   forcePenaltyGold = 0;   // 강제 차감 골드
 }
 
 [System.Serializable]
@@ -73,6 +77,7 @@ public class ExplorationChoiceData
     public float timePenalty;         // 소모 시간
     public float timeGain;            // 시각 획득 (있을 경우)
     public string rewardObjectId;     // 획득하는 단서/오브젝트 ID
+    public string consumedObjectId;   // [ADD] 이 선택 시 소모될 보관 중인 오브젝트 ID (없으면 유지)
     public bool   shouldRedrawPath;   // 이 선택 후 경로를 다시 그려야 하는지 여부
     
     // 이 선택지가 보이기 위한 조건 (유저 요청: 미충족 시 안 보임)

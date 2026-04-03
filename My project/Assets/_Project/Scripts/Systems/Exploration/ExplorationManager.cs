@@ -25,6 +25,15 @@ public class ExplorationManager : MonoBehaviour
     public float drawThreshold = 0.5f; // 점 사이의 최소 거리
     public Transform playerTransform;  // [ADD] 실제 캐릭터 모델 트랜스폼
 
+#if ENABLE_INPUT_SYSTEM
+    [Header("Input System")]
+    [SerializeField] private PlayerInput playerInput;
+    private InputAction clickAction;
+    private InputAction rightClickAction;
+    private InputAction pointAction;
+    private InputAction interactAction;
+#endif
+
     private Coroutine movementCoroutine;
     private bool isDrawing = false;
     private Vector3 lastAddedPoint;
@@ -43,10 +52,69 @@ public class ExplorationManager : MonoBehaviour
         }
     }
 
+#if ENABLE_INPUT_SYSTEM
+    private void OnEnable()
+    {
+        if (playerInput == null) playerInput = GetComponent<PlayerInput>();
+        if (playerInput == null) return;
+
+        clickAction = playerInput.actions["Attack"]; // Player Map의 Attack (Left Click)
+        rightClickAction = playerInput.actions["RightClick"]; // UI Map의 RightClick
+        pointAction = playerInput.actions["Point"]; // UI Map의 Point (Mouse Position)
+        interactAction = playerInput.actions["Interact"]; // Player Map의 Interact (E)
+
+        // 클릭 이벤트 구독
+        clickAction.started += OnClickStarted;
+        clickAction.canceled += OnClickCanceled;
+        
+        // 우클릭(Undo) 이벤트 구독
+        rightClickAction.performed += OnRightClickPerformed;
+
+        // 상호작용 이벤트 구독
+        interactAction.performed += OnInteractPerformed;
+    }
+
+    private void OnDisable()
+    {
+        if (clickAction != null)
+        {
+            clickAction.started -= OnClickStarted;
+            clickAction.canceled -= OnClickCanceled;
+        }
+        if (rightClickAction != null) rightClickAction.performed -= OnRightClickPerformed;
+        if (interactAction != null) interactAction.performed -= OnInteractPerformed;
+    }
+
+    private void OnClickStarted(InputAction.CallbackContext context)
+    {
+        if (currentState.phase == ExplorationPhase.Planning) StartDrawing();
+    }
+
+    private void OnClickCanceled(InputAction.CallbackContext context)
+    {
+        isDrawing = false;
+    }
+
+    private void OnRightClickPerformed(InputAction.CallbackContext context)
+    {
+        if (currentState.phase == ExplorationPhase.Planning) UndoLastSegment();
+    }
+
+    private void OnInteractPerformed(InputAction.CallbackContext context)
+    {
+        if (currentState.phase == ExplorationPhase.Moving && nearInteractionNode != null)
+        {
+            TriggerEvent(nearInteractionNode);
+        }
+    }
+#endif
+
     private ExplorationNodeData nearInteractionNode;
 
     void Update()
     {
+#if !ENABLE_INPUT_SYSTEM
+        // Legacy Input Handling
         if (currentState.phase == ExplorationPhase.Planning)
         {
             HandlePlanningInput();
@@ -55,6 +123,13 @@ public class ExplorationManager : MonoBehaviour
         {
             HandleMovingInput();
         }
+#else
+        // New Input System: Drawing Update (지속적인 드래그 처리)
+        if (currentState.phase == ExplorationPhase.Planning && isDrawing)
+        {
+            UpdateDrawing();
+        }
+#endif
     }
 
     private void HandleMovingInput()
@@ -117,6 +192,7 @@ public class ExplorationManager : MonoBehaviour
 
             currentState.pathSegments.Add(newSegment);
             lastAddedPoint = hitPos;
+            UpdatePredictedTime(); // [ADD] 예상 시간 갱신
             GameEvents.RaiseExplorationUpdated(currentState);
         }
     }
@@ -141,6 +217,7 @@ public class ExplorationManager : MonoBehaviour
                 {
                     currentState.pathSegments[currentState.pathSegments.Count - 1].Add(hitPos);
                     lastAddedPoint = hitPos;
+                    UpdatePredictedTime(); // [ADD] 예상 시간 갱신
                     GameEvents.RaiseExplorationUpdated(currentState);
                 }
             }
@@ -152,6 +229,7 @@ public class ExplorationManager : MonoBehaviour
         if (currentState.pathSegments.Count > 0)
         {
             currentState.pathSegments.RemoveAt(currentState.pathSegments.Count - 1);
+            UpdatePredictedTime(); // [ADD] 예상 시간 갱신
             GameEvents.RaiseExplorationUpdated(currentState);
             GameEvents.RaiseActionResult("마지막 경로 구간을 취소했습니다.");
         }
@@ -160,7 +238,16 @@ public class ExplorationManager : MonoBehaviour
     private bool TryGetMouseWorldPosition(out Vector3 position)
     {
         position = Vector3.zero;
-        Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+        
+        Vector2 mousePos;
+#if ENABLE_INPUT_SYSTEM
+        if (pointAction == null) return false;
+        mousePos = pointAction.ReadValue<Vector2>();
+#else
+        mousePos = Input.mousePosition;
+#endif
+
+        Ray ray = Camera.main.ScreenPointToRay(mousePos);
         if (Physics.Raycast(ray, out RaycastHit hit, 100f, groundLayer))
         {
             position = hit.point;
@@ -178,6 +265,24 @@ public class ExplorationManager : MonoBehaviour
             if (lastSegment.Count > 0) return lastSegment[lastSegment.Count - 1];
         }
         return currentState.currentPosition;
+    }
+
+    private void UpdatePredictedTime()
+    {
+        float totalDist = 0;
+        Vector3 current = currentState.currentPosition;
+
+        foreach (var segment in currentState.pathSegments)
+        {
+            foreach (var point in segment)
+            {
+                totalDist += Vector3.Distance(current, point);
+                current = point;
+            }
+        }
+
+        // 공식: 시간 = 거리 / 속도
+        currentState.predictedTime = totalDist / moveSpeed;
     }
 
     private List<Vector3> CalculateNavMeshPath(Vector3 start, Vector3 end)
@@ -249,6 +354,7 @@ public class ExplorationManager : MonoBehaviour
         if (currentState.phase != ExplorationPhase.Planning) return;
         currentState.pathSegments.Clear();
         currentState.plannedPath.Clear();
+        currentState.predictedTime = 0; // [ADD] 예상 시간 초기화
         GameEvents.RaiseExplorationUpdated(currentState);
     }
 
@@ -468,7 +574,7 @@ public class ExplorationManager : MonoBehaviour
 
     public void ExitExploration()
     {
-        // 메인 씬으로 복귀 로직
-        UnityEngine.SceneManagement.SceneManager.LoadScene("Main");
+        // 메인 씬으로 복귀 로직 [FIX] 씬 이름 일치화
+        UnityEngine.SceneManagement.SceneManager.LoadScene("Scene_MainGame");
     }
 }

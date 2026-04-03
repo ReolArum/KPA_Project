@@ -9,6 +9,7 @@ public class ExplorationUIController : MonoBehaviour
     [SerializeField] private TMP_Text textTime;
     [SerializeField] private TMP_Text textChoices;
     [SerializeField] private TMP_Text textGold;
+    [SerializeField] private TMP_Text textPredictedTime; // [ADD] 예상 시간 텍스트
     [SerializeField] private Button btnConfirmPath; // [ADD] 경로 확정 버튼
 
     [Header("Event Popup")]
@@ -139,6 +140,17 @@ public class ExplorationUIController : MonoBehaviour
         }
 
         if (textGold) textGold.text = $"{state.collectedGold} G";
+
+        if (textPredictedTime)
+        {
+            // 계획 단계에서만 예상 시간을 보여주거나 강조
+            int pMin = (int)state.predictedTime / 60;
+            int pSec = (int)state.predictedTime % 60;
+            textPredictedTime.text = $"예상: {pMin:00}:{pSec:00}";
+            
+            // Planning 페이즈가 아닐 때는 숨기거나 흐릿하게 처리 가능
+            textPredictedTime.gameObject.SetActive(state.phase == ExplorationPhase.Planning);
+        }
     }
 
     private void HandleVNStarted(List<VNDialogueStep> steps, System.Action onComplete)

@@ -8,6 +8,7 @@ public class ExplorationState
     public int   remainingChoices;    // 남은 선택 횟수 (-1이면 무제한)
     public int   collectedGold;       // 이번 탐사에서 얻은 골드
     public Vector3 currentPosition;   // [ADD] 현재 플레이어 위치
+    public float predictedTime;       // [ADD] 계획된 경로의 예상 소요 시간 (초)
     
     // 획득한 특수 오브젝트/단서 ID 리스트
     public List<string> foundObjectIds = new List<string>();

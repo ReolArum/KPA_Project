@@ -14,14 +14,24 @@ public class ExplorationEventProcessor : MonoBehaviour
     {
         Debug.Log($"Processing Event: {node.nodeId} ({node.eventType})");
 
-        // 1. 가용한 선택지 필터링 (유저 요청: 조건 미충족 시 아예 안 보임)
+        // 2. 가용한 선택지 필터링 (유저 요청: 조건 미충족 시 아예 안 보임)
         List<ExplorationChoiceData> visibleChoices = FilterChoices(node.choices);
 
-        // 2. UI에 이벤트 정보 및 선택지 전달 (UI 제작 전이므로 로그로 대체)
-        if (visibleChoices.Count == 0)
+        var expState = ExplorationManager.Instance.currentState;
+
+        // [New] 선택권 소진 혹은 유효 선택지 전무 시 강제 패널티 후 즉시 재개
+        if (expState.remainingChoices == 0 || visibleChoices.Count == 0)
         {
-            Debug.LogWarning("No available choices for this event! Forcing bypass/penalty.");
-            // 횟수 소진이나 조건 미충족 시 강제 패널티 로직 등이 들어갈 자리
+            Debug.LogWarning("No available choices or turns! Applying force penalty.");
+            
+            // 패널티 적용
+            expState.remainingTime = Mathf.Max(0, expState.remainingTime - node.forcePenaltyTime);
+            expState.collectedGold = Mathf.Max(0, expState.collectedGold - node.forcePenaltyGold);
+            
+            GameEvents.RaiseActionResult($"패널티 적용: 시간 -{node.forcePenaltyTime}s / 골드 -{node.forcePenaltyGold}G");
+            
+            // 즉시 이동 재개
+            ExplorationManager.Instance.ResumeMovement(false);
             return;
         }
 
@@ -101,6 +111,16 @@ public class ExplorationEventProcessor : MonoBehaviour
             {
                 expState.foundObjectIds.Add(choice.rewardObjectId);
                 GameEvents.RaiseExplorationClueFound(choice.rewardObjectId);
+            }
+        }
+
+        // 4. [ADD] 소모성 오브젝트 처리
+        if (!string.IsNullOrEmpty(choice.consumedObjectId))
+        {
+            if (expState.foundObjectIds.Contains(choice.consumedObjectId))
+            {
+                expState.foundObjectIds.Remove(choice.consumedObjectId);
+                Debug.Log($"Object Consumed: {choice.consumedObjectId}");
             }
         }
 
