@@ -6,6 +6,12 @@
 
 ## 🕒 실시간 작업 현황 (최신순)
 
+### [🚨 긴급] TextMesh Pro 관련 에러 조치 (NullReferenceException)
+> [!CAUTION]
+> 씬 구성 도중 TMP 관련 `NullReferenceException`이 발생한다면 다음을 수행하세요:
+> 1.  **필수 리소스 임포트**: `Window > TextMeshPro > Import TMP Essential Resources` 실행.
+> 2.  **폰트 할당**: 생성된 모든 `TMP_Text` 오브젝트의 `Font Asset` 필드에 기본 폰트(LiberationSans SDF 등)가 할당되어 있는지 확인.
+
 ### [2026-04-03] 신규 Input System 전환 후속 조치
 > [!IMPORTANT]
 > `ExplorationManager.cs`가 신규 Input System 방식으로 리팩토링되었습니다. 아래 설정을 완료해야 정상 작동합니다.
@@ -39,10 +45,15 @@
 ### 🖥️ UI 컨트롤러 설정 (ExplorationUIController)
 - `HUD`, `VN Panel`, `Clue List` 등 인스펙터에 노출된 UI 요소들이 계층 구조 상의 실제 오브젝트들과 연결되어 있는지 확인이 필요합니다.
 
-### 🧠 네비메시 및 레이어 (NavMesh)
-- 캐릭터 이동을 위해 바닥 오브젝트를 **Static**으로 설정하고 네비메시를 **Bake** 하세요. (`Window > AI > Navigation`)
+### 🧠 3. 네비메시 및 레이어 설정 (NavMesh & Layers) - Unity 6 권장
+- **NavMeshSurface 활용**:
+    *   `Navigation (Obsolete)` 창 대신, 씬에 **`NavMeshSurface`** 컴포넌트를 추가하여 베이킹하세요.
+    *   `Include Layers`에서 바닥과 장애물 레이어가 포함되었는지 확인 후 **[Bake]** 버튼을 누릅니다.
+- **Layer 할당**:
+    *   `ExplorationManager` 인스펙터에서 `groundLayer`를 바닥 레이어로, `obstacleLayer`를 벽/장애물 레이어로 설정합니다.
+    *   실제 월드의 바닥과 벽 오브젝트에 해당 레이어를 각각 할당하세요.
 
----
+--- 
 
 **마지막 갱신 일자**: 2026-04-03
 **상태**: 대기 중인 수동 작업 있음 (Input System)

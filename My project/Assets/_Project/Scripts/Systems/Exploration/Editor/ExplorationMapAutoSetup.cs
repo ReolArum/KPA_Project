@@ -14,27 +14,37 @@ public class ExplorationMapAutoSetup : AssetPostprocessor
     {
         string name = t.name.ToUpper();
 
-        // 1. 함정 (TRAP_)
-        if (name.StartsWith("TRAP_"))
+        // 1. 시작 지점 (START_)
+        if (name.StartsWith("START_"))
         {
-            SetupNode(t, ExplorationEventType.Hazard);
+            SetupStartMarker(t);
         }
-        // 2. 상호작용 오브젝트 (OBJ_)
+        // 2. 단서 아이템 (CLUE_)
+        else if (name.StartsWith("CLUE_"))
+        {
+            SetupNodeMarker(t, ExplorationEventType.Clue);
+        }
+        // 3. 함정 (TRAP_)
+        else if (name.StartsWith("TRAP_"))
+        {
+            SetupNodeMarker(t, ExplorationEventType.Hazard);
+        }
+        // 3. 상호작용 오브젝트 (OBJ_)
         else if (name.StartsWith("OBJ_"))
         {
-            SetupNode(t, ExplorationEventType.Interactive);
+            SetupNodeMarker(t, ExplorationEventType.Interactive);
         }
-        // 3. 보상박스 (RW_ 또는 REWARD_)
+        // 4. 보상박스 (RW_ 또는 REWARD_)
         else if (name.StartsWith("RW_") || name.StartsWith("REWARD_"))
         {
-            SetupNode(t, ExplorationEventType.Reward);
+            SetupNodeMarker(t, ExplorationEventType.Reward);
         }
-        // 4. 탈출구 (EXIT_)
+        // 5. 탈출구 (EXIT_)
         else if (name.StartsWith("EXIT_"))
         {
-            SetupNode(t, ExplorationEventType.Exit);
+            SetupNodeMarker(t, ExplorationEventType.Exit);
         }
-        // 5. 경로 가이드 (PATH_)
+        // 6. 경로 가이드 (PATH_)
         else if (name.StartsWith("PATH_"))
         {
             // 경로 노드는 시각적 요소일 가능성이 높으므로 별도 컴포넌트 없이 위치만 활용할 수 있음
@@ -47,10 +57,26 @@ public class ExplorationMapAutoSetup : AssetPostprocessor
         }
     }
 
-    private void SetupNode(Transform t, ExplorationEventType type)
+    private void SetupStartMarker(Transform t)
     {
-        // 런타임에 쓰일 수 있는 식별용 태그나 레이어 설정 (필요 시)
-        // t.gameObject.layer = LayerMask.NameToLayer("ExplorationNode");
+        // ExplorationStartMarker 자동 부착
+        if (t.GetComponent<ExplorationStartMarker>() == null)
+        {
+            t.gameObject.AddComponent<ExplorationStartMarker>();
+        }
+        Debug.Log($"[ExplorationSetup] 시작 마커 설정: {t.name}");
+    }
+
+    private void SetupNodeMarker(Transform t, ExplorationEventType type)
+    {
+        // ExplorationNodeMarker 자동 부착
+        var marker = t.GetComponent<ExplorationNodeMarker>();
+        if (marker == null)
+        {
+            marker = t.gameObject.AddComponent<ExplorationNodeMarker>();
+        }
+        marker.nodeId = t.name;  // 오브젝트 이름 = nodeId
+        marker.eventType = type;
 
         // 콜라이더가 없으면 자동 생성 (메시 기반)
         if (t.GetComponent<Collider>() == null)
@@ -65,7 +91,7 @@ public class ExplorationMapAutoSetup : AssetPostprocessor
         var col = t.GetComponent<Collider>();
         if (col != null) col.isTrigger = true;
 
-        // 나중에 ExplorationManager에서 찾기 편하게 특정 컴포넌트나 태그 부여
-        Debug.Log($"[ExplorationSetup] Configured {t.name} as {type}");
+        Debug.Log($"[ExplorationSetup] 노드 마커 설정: {t.name} → {type}");
     }
 }
+

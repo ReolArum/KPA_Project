@@ -37,6 +37,11 @@ public class ExplorationManager : MonoBehaviour
     private Coroutine movementCoroutine;
     private bool isDrawing = false;
     private Vector3 lastAddedPoint;
+    private bool _isPointerOverUI = false; // [FIX] Input System 콜백에서 IsPointerOverGameObject 사용 불가 대응
+
+    // [ADD] 씬 마커 기반 위치 오버라이드 (ScriptableObject 원본 보호)
+    private Dictionary<string, Vector3> nodePositionOverrides = new Dictionary<string, Vector3>();
+    private Vector3? startPositionOverride;
 
     void Awake()
     {
@@ -113,6 +118,10 @@ public class ExplorationManager : MonoBehaviour
 
     void Update()
     {
+        // [FIX] UI 호버 상태를 매 프레임 캐싱 (Input System 콜백에서 직접 호출 불가)
+        _isPointerOverUI = UnityEngine.EventSystems.EventSystem.current != null &&
+                           UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject();
+
 #if !ENABLE_INPUT_SYSTEM
         // Legacy Input Handling
         if (currentState.phase == ExplorationPhase.Planning)
@@ -166,9 +175,8 @@ public class ExplorationManager : MonoBehaviour
 
     private void StartDrawing()
     {
-        if (UnityEngine.EventSystems.EventSystem.current != null && 
-            UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject())
-            return;
+        // [FIX] 캐싱된 UI 호버 상태 사용 (Input System 콜백 호환)
+        if (_isPointerOverUI) return;
 
         Vector3 hitPos;
         if (TryGetMouseWorldPosition(out hitPos))
@@ -178,8 +186,10 @@ public class ExplorationManager : MonoBehaviour
             // 새 세그먼트 시작
             List<Vector3> newSegment = new List<Vector3>();
             
-            // 이전 마지막 지점이 있다면 최단 경로로 연결
+            // [FIX] 이전 지점에서 현재 클릭 지점까지 NavMesh 최단 경로 계산
             Vector3 startPoint = GetLastPathPoint();
+            
+            // 거리가 너무 가깝지 않다면 경로 계산
             if (Vector3.Distance(startPoint, hitPos) > 0.1f)
             {
                 var navPath = CalculateNavMeshPath(startPoint, hitPos);
@@ -192,7 +202,7 @@ public class ExplorationManager : MonoBehaviour
 
             currentState.pathSegments.Add(newSegment);
             lastAddedPoint = hitPos;
-            UpdatePredictedTime(); // [ADD] 예상 시간 갱신
+            UpdatePredictedTime();
             GameEvents.RaiseExplorationUpdated(currentState);
         }
     }
@@ -247,12 +257,22 @@ public class ExplorationManager : MonoBehaviour
         mousePos = Input.mousePosition;
 #endif
 
-        Ray ray = Camera.main.ScreenPointToRay(mousePos);
+        var cam = Camera.main;
+        if (cam == null) return false;
+
+        Ray ray = cam.ScreenPointToRay(mousePos);
         if (Physics.Raycast(ray, out RaycastHit hit, 100f, groundLayer))
         {
-            position = hit.point;
-            position.y = 0; // 평면 유지
-            return true;
+            // [FIX] NavMesh 표면에 스냅 — 걸을 수 있는 영역 위에만 그려짐
+            NavMeshHit navHit;
+            if (NavMesh.SamplePosition(hit.point, out navHit, 2.0f, NavMesh.AllAreas))
+            {
+                position = navHit.position;
+                position.y += 0.05f; // NavMesh 표면보다 살짝 위로 (선이 보이게)
+                return true;
+            }
+            // NavMesh 범위 밖이면 그리기 거부
+            return false;
         }
         return false;
     }
@@ -294,13 +314,13 @@ public class ExplorationManager : MonoBehaviour
             foreach (var corner in path.corners)
             {
                 Vector3 p = corner;
-                p.y = 0;
+                p.y += 0.05f; // [FIX] 최단 경로 점들도 바닥 위로 띄움
                 points.Add(p);
             }
         }
         else
         {
-            // 경로를 못 찾으면 직선으로 (혹은 에러 처리)
+            // 경로를 못 찾으면 직선으로 (스냅된 위치 사용)
             points.Add(end);
         }
         return points;
@@ -317,17 +337,61 @@ public class ExplorationManager : MonoBehaviour
     public void StartExploration(ExplorationStageData data)
     {
         stageData = data;
-        currentState.Reset(data.limitTime, data.maxChoices, data.startPosition);
+
+        // [ADD] 씬 마커 스캔 — 기획자가 배치한 오브젝트 위치를 자동으로 읽어옴
+        ScanSceneMarkers();
+
+        Vector3 spawnPos = startPositionOverride ?? data.startPosition;
+        currentState.Reset(data.limitTime, data.maxChoices, spawnPos);
         
         // [ADD] 플레이어 비주얼 위치 동기화 (Snap)
         if (playerTransform != null)
         {
-            playerTransform.position = data.startPosition;
+            playerTransform.position = spawnPos;
         }
         
         GameEvents.RaiseActionResult($"탐사 시작: {data.stageName}");
         GameEvents.RaiseExplorationStarted(data, currentState); // [ADD] UI 시작 이벤트
         SetPhase(ExplorationPhase.Planning);
+    }
+
+    /// <summary>
+    /// 씬에 배치된 ExplorationStartMarker / ExplorationNodeMarker를 탐색하여
+    /// 위치 정보를 딕셔너리에 캐싱합니다. ScriptableObject 원본은 수정하지 않습니다.
+    /// </summary>
+    private void ScanSceneMarkers()
+    {
+        // 시작 마커
+        var startMarker = FindFirstObjectByType<ExplorationStartMarker>();
+        startPositionOverride = (startMarker != null) ? (Vector3?)startMarker.transform.position : null;
+        if (startMarker != null)
+            Debug.Log($"[MarkerScan] 시작 마커 감지: {startMarker.transform.position}");
+
+        // 노드 마커
+        nodePositionOverrides.Clear();
+        var nodeMarkers = FindObjectsByType<ExplorationNodeMarker>(FindObjectsSortMode.None);
+        foreach (var marker in nodeMarkers)
+        {
+            if (string.IsNullOrEmpty(marker.nodeId))
+            {
+                Debug.LogWarning($"[MarkerScan] nodeId가 비어있는 마커: {marker.gameObject.name}");
+                continue;
+            }
+            nodePositionOverrides[marker.nodeId] = marker.transform.position;
+            Debug.Log($"[MarkerScan] 노드 마커 감지: {marker.nodeId} → {marker.transform.position}");
+        }
+        Debug.Log($"[MarkerScan] 총 {nodePositionOverrides.Count}개 노드 마커, 시작 마커 {(startMarker != null ? "있음" : "없음 (fallback 사용)")}");
+    }
+
+    /// <summary>
+    /// 노드의 실제 사용 위치를 반환합니다.
+    /// 씬 마커가 있으면 마커 위치, 없으면 ScriptableObject의 worldPosition을 사용합니다.
+    /// </summary>
+    private Vector3 GetNodePosition(ExplorationNodeData node)
+    {
+        if (nodePositionOverrides.TryGetValue(node.nodeId, out var pos))
+            return pos;
+        return node.worldPosition;
     }
 
     private void SetPhase(ExplorationPhase nextPhase)
@@ -387,7 +451,12 @@ public class ExplorationManager : MonoBehaviour
             
             while (Vector3.Distance(currentState.currentPosition, target) > 0.1f)
             {
-                if (currentState.phase != ExplorationPhase.Moving) yield return null;
+                // 이벤트 처리 중이면 이동/시간소모 일시정지 (이벤트 종료까지 대기)
+                if (currentState.phase != ExplorationPhase.Moving)
+                {
+                    yield return new WaitUntil(() => currentState.phase == ExplorationPhase.Moving || currentState.phase == ExplorationPhase.Result);
+                    if (currentState.phase == ExplorationPhase.Result) yield break;
+                }
 
                 float step = moveSpeed * Time.deltaTime;
                 currentState.currentPosition = Vector3.MoveTowards(currentState.currentPosition, target, step);
@@ -416,13 +485,6 @@ public class ExplorationManager : MonoBehaviour
 
             // 노드 도달 (경로 점 도달 시)
             currentState.plannedPath.RemoveAt(0);
-            CheckForEventAtCurrentPosition();
-
-            // 이벤트가 발생했다면 코루틴 일시 정지 (SetPhase에서 제어)
-            if (currentState.phase == ExplorationPhase.EventProcessing)
-            {
-                yield return new WaitUntil(() => currentState.phase == ExplorationPhase.Moving || currentState.phase == ExplorationPhase.Result);
-            }
         }
 
         // 모든 경로 점을 소모한 후
@@ -434,63 +496,48 @@ public class ExplorationManager : MonoBehaviour
 
     private void ScanNearbyNodes()
     {
-        nearInteractionNode = null;
-        bool promptShown = false;
-
         foreach (var node in stageData.nodes)
         {
-            Vector3 diff = currentState.currentPosition - node.worldPosition;
-            float distSqr = diff.sqrMagnitude; // [OPT] 제곱 거리 사용
+            // 이미 처리된 노드는 스킵 (단서 수집 완료 or 이벤트 발동 완료)
+            if (currentState.triggeredNodeIds.Contains(node.nodeId)) continue;
 
-            // 1. 단서 자동 획득 (Clue Auto-collect)
-            if (node.eventType == ExplorationEventType.Hazard && !currentState.foundObjectIds.Contains(node.nodeId))
+            Vector3 nodePos = GetNodePosition(node);
+            Vector3 diff = currentState.currentPosition - nodePos;
+            float distSqr = diff.sqrMagnitude;
+
+            // ── 1. 단서 아이템 (Clue): clueRange 진입 시 자동 수집, 이벤트 없음 ──
+            if (node.eventType == ExplorationEventType.Clue)
             {
                 float rangeSqr = node.clueRange * node.clueRange;
                 if (distSqr <= rangeSqr)
                 {
+                    currentState.triggeredNodeIds.Add(node.nodeId);
                     currentState.foundObjectIds.Add(node.nodeId);
                     GameEvents.RaiseExplorationClueFound(node.nodeName ?? node.nodeId);
+                    Debug.Log($"[Exploration] 단서 수집: {node.nodeName ?? node.nodeId}");
                 }
+                continue; // 단서는 이벤트 발동 없음
             }
 
-            // 2. 상호작용 범위 체크 (Interaction Prompt)
-            if (node.eventType == ExplorationEventType.Exit)
+            // ── 2. 이벤트 노드 (Hazard/Obstacle/Interactive/Reward/Exit) ──
+            //    interactionRange 진입 시 자동으로 이벤트 발생 + 탐사 일시정지
+            if (node.eventType != ExplorationEventType.None)
             {
                 float rangeSqr = node.interactionRange * node.interactionRange;
                 if (distSqr <= rangeSqr)
                 {
-                    nearInteractionNode = node;
-                    GameEvents.RaiseExplorationInteractionPrompt(node.interactPrompt, true);
-                    promptShown = true;
+                    currentState.triggeredNodeIds.Add(node.nodeId);
+                    Debug.Log($"[Exploration] 이벤트 발동: {node.nodeId} ({node.eventType})");
+                    TriggerEvent(node);
+                    return; // 이벤트 발동 시 즉시 스캔 중단 (일시정지 상태로 전환)
                 }
             }
-        }
-
-        if (!promptShown)
-        {
-            GameEvents.RaiseExplorationInteractionPrompt("", false);
         }
     }
 
     private void ConsumeTime(float amount)
     {
         currentState.remainingTime = Mathf.Max(0, currentState.remainingTime - amount);
-    }
-
-    private void CheckForEventAtCurrentPosition()
-    {
-        foreach (var node in stageData.nodes)
-        {
-            if (Vector3.Distance(currentState.currentPosition, node.worldPosition) < 0.5f)
-            {
-                // 일반 이벤트 노드는 밟으면 즉시 발동
-                if (node.eventType == ExplorationEventType.Hazard || node.eventType == ExplorationEventType.Exit)
-                {
-                    TriggerEvent(node);
-                    break;
-                }
-            }
-        }
     }
 
     // ====================================================

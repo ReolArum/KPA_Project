@@ -15,17 +15,30 @@ MonoBehaviour:
   stageName: "\uD14C\uC2A4\uD2B8 \uAD6C\uC5ED (\uC2E4\uD5D8\uC2E4)"
   limitTime: 120
   maxChoices: 5
+  startPosition: {x: 0, y: 0, z: 0}
   blueprintSprite: {fileID: 0}
   mapPrefab: {fileID: 0}
   nodes:
   - nodeId: Start
+    nodeName: 
     worldPosition: {x: 0, y: 0, z: 0}
     eventType: 0
+    clueRange: 2
+    interactionRange: 1.5
+    vnSequence: []
+    interactPrompt: "\uC870\uC0AC\uD558\uAE30"
     requirements: []
     choices: []
+    forcePenaltyTime: 10
+    forcePenaltyGold: 0
   - nodeId: Hazard_Event
-    worldPosition: {x: 300, y: 0, z: 0}
+    nodeName: 
+    worldPosition: {x: 5, y: 0, z: 0}
     eventType: 1
+    clueRange: 2
+    interactionRange: 1.5
+    vnSequence: []
+    interactPrompt: "\uC870\uC0AC\uD558\uAE30"
     requirements: []
     choices:
     - label: "\uC870\uC2EC\uD574\uC11C \uC6B0\uD68C\uD558\uAE30"
@@ -34,6 +47,8 @@ MonoBehaviour:
       timePenalty: 15
       timeGain: 0
       rewardObjectId: 
+      consumedObjectId: 
+      shouldRedrawPath: 0
       ownRequirements: []
     - label: "\uAC15\uD589 \uB3CC\uD30C (\uC704\uD5D8)"
       type: 0
@@ -41,9 +56,20 @@ MonoBehaviour:
       timePenalty: 5
       timeGain: 0
       rewardObjectId: 
+      consumedObjectId: 
+      shouldRedrawPath: 0
       ownRequirements: []
+    forcePenaltyTime: 10
+    forcePenaltyGold: 0
   - nodeId: Exit
+    nodeName: 
     worldPosition: {x: 10, y: 0, z: 0}
     eventType: 5
+    clueRange: 2
+    interactionRange: 1.5
+    vnSequence: []
+    interactPrompt: "\uC870\uC0AC\uD558\uAE30"
     requirements: []
     choices: []
+    forcePenaltyTime: 10
+    forcePenaltyGold: 0

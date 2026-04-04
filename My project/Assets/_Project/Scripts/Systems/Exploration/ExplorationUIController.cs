@@ -254,17 +254,19 @@ public class ExplorationUIController : MonoBehaviour
     {
         if (pathRenderer == null) return;
 
+        // [FIX] LineRenderer가 세계 좌표를 기준으로 그려지도록 설정
+        pathRenderer.useWorldSpace = true;
+
         List<Vector3> allPoints = new List<Vector3>();
-        allPoints.Add(state.currentPosition);
+
+        // [FIX] 캐릭터의 실시간 위치(state.currentPosition)를 추가하던 로직 제거
+        // 그려진 경로 데이터(pathSegments)만 사용하여 선을 바닥에 고정
 
         // 모든 세그먼트를 순서대로 합쳐서 시각화
         foreach (var segment in state.pathSegments)
         {
             allPoints.AddRange(segment);
         }
-
-        // 드로잉 중인 현재 실시간 경로도 포함 (필요 시)
-        // 위 로직은 이미 ExplorationManager에서 실시간으로 세그먼트에 점을 추가하므로 연동됨
 
         pathRenderer.positionCount = allPoints.Count;
         pathRenderer.SetPositions(allPoints.ToArray());
