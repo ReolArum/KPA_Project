@@ -19,8 +19,9 @@ public class ExplorationEventProcessor : MonoBehaviour
 
         var expState = ExplorationManager.Instance.currentState;
 
-        // [New] 선택권 소진 혹은 유효 선택지 전무 시 강제 패널티 후 즉시 재개
-        if (expState.remainingChoices == 0 || visibleChoices.Count == 0)
+        // 3. [FIX] 선택권이 없더라도 탈출(Exit) 선택지가 있다면 보여줘야 함
+        bool hasExitChoice = visibleChoices.Exists(c => c.type == ExplorationChoiceType.Exit);
+        if (visibleChoices.Count == 0 || (expState.remainingChoices <= 0 && !hasExitChoice))
         {
             Debug.LogWarning("No available choices or turns! Applying force penalty.");
             
@@ -42,13 +43,20 @@ public class ExplorationEventProcessor : MonoBehaviour
     private List<ExplorationChoiceData> FilterChoices(List<ExplorationChoiceData> allChoices)
     {
         List<ExplorationChoiceData> filtered = new List<ExplorationChoiceData>();
-        var state = GameManager.Instance.State;
-        var expState = ExplorationManager.Instance.currentState;
+
+        // [FIX] GameManager가 없는 환경(씬 단독 실행 등)에서의 NullReferenceException 방지
+        GameState state = (GameManager.Instance != null) ? GameManager.Instance.State : new GameState();
+        
+        var expManager = ExplorationManager.Instance;
+        if (expManager == null) return allChoices; // 에러 방지: Manager가 없으면 필터링 없이 반환
+
+        var expState = expManager.currentState;
 
         foreach (var choice in allChoices)
         {
-            // '선택 횟수' 제한 체크 (유연한 설계: -1이면 통과)
-            if (expState.remainingChoices == 0) continue; 
+            // [FIX] 탈출(Exit) 타입은 선택권이 없어도(0이라도) 항상 노출되어야 함
+            bool isExitChoice = choice.type == ExplorationChoiceType.Exit;
+            if (expState.remainingChoices <= 0 && !isExitChoice) continue; 
 
             // 개별 선택지 노출 조건 체크
             if (CheckRequirements(choice.ownRequirements, state, expState))
@@ -124,9 +132,16 @@ public class ExplorationEventProcessor : MonoBehaviour
             }
         }
 
-        Debug.Log($"Choice Applied: {choice.label}. Redraw: {choice.shouldRedrawPath}");
+        Debug.Log($"Choice Applied: {choice.label}. Type: {choice.type}. Redraw: {choice.shouldRedrawPath}");
+        
+        // 4. 탈출 선택지일 경우 즉시 정산 종료
+        if (choice.type == ExplorationChoiceType.Exit)
+        {
+            ExplorationManager.Instance.OnExplorationSucceeded();
+            return;
+        }
 
-        // 4. 탐사 재개 (경로 재작성 여부 전달)
+        // 5. 탐사 재개 (경로 재작성 여부 전달)
         ExplorationManager.Instance.ResumeMovement(choice.shouldRedrawPath);
     }
 }

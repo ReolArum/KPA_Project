@@ -24,6 +24,7 @@ public class ExplorationNodeData
     public string               nodeName;         // UI에 표시될 이름 (단서 등)
     public Vector3              worldPosition;
     public ExplorationEventType eventType;
+    public bool                 isOneTime = true; // [ADD] 1회용 여부 (기본 true)
 
     [Header("Ranges")]
     public float clueRange = 2.0f;        // 단서 자동 획득 범위

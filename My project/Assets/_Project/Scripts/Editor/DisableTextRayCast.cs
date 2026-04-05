@@ -7,7 +7,7 @@ public class DisableTextRaycast
     [MenuItem("Tools/TMP Raycast Target 전체 해제")]
     static void DisableAll()
     {
-        var texts = Object.FindObjectsByType<TMP_Text>(FindObjectsSortMode.None);
+        var texts = Object.FindObjectsByType<TMP_Text>(FindObjectsInactive.Exclude);
         int count = 0;
 
         foreach (var t in texts)

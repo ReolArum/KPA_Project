@@ -10,12 +10,14 @@ public class ExplorationUIController : MonoBehaviour
     [SerializeField] private TMP_Text textChoices;
     [SerializeField] private TMP_Text textGold;
     [SerializeField] private TMP_Text textPredictedTime; // [ADD] 예상 시간 텍스트
+    [SerializeField] private TMP_Text textActionResult;  // [ADD] 행동 결과 알림 텍스트
     [SerializeField] private Button btnConfirmPath; // [ADD] 경로 확정 버튼
 
     [Header("Event Popup")]
     [SerializeField] private GameObject panelEvent;
     [SerializeField] private TMP_Text textEventTitle;
     [SerializeField] private TMP_Text textEventDesc;
+    [SerializeField] private float actionResultDuration = 2.5f; // [ADD] 알림 지속 시간
     [SerializeField] private Transform choiceButtonRoot;
     [SerializeField] private Button choiceButtonPrefab;
 
@@ -67,6 +69,7 @@ public class ExplorationUIController : MonoBehaviour
         GameEvents.OnExplorationClueFound += HandleClueFound;
         GameEvents.OnExplorationVNStarted += HandleVNStarted;
         GameEvents.OnExplorationInteractionPrompt += HandleInteractionPrompt;
+        GameEvents.OnActionResult += HandleActionResult; // [ADD] 결과 알림 구독
     }
 
     void OnDisable()
@@ -78,6 +81,7 @@ public class ExplorationUIController : MonoBehaviour
         GameEvents.OnExplorationClueFound -= HandleClueFound;
         GameEvents.OnExplorationVNStarted -= HandleVNStarted;
         GameEvents.OnExplorationInteractionPrompt -= HandleInteractionPrompt;
+        GameEvents.OnActionResult -= HandleActionResult;
     }
 
     private void Start()
@@ -85,6 +89,7 @@ public class ExplorationUIController : MonoBehaviour
         if (panelEvent) panelEvent.SetActive(false);
         if (panelResult) panelResult.SetActive(false);
         if (panelVN)     panelVN.SetActive(false);
+        if (textActionResult) textActionResult.gameObject.SetActive(false);
         
         if (btnExit) btnExit.onClick.AddListener(() => ExplorationManager.Instance.ExitExploration());
         
@@ -221,6 +226,27 @@ public class ExplorationUIController : MonoBehaviour
                 textInteractPrompt.text = $"[{keyName}] {prompt}";
             }
         }
+    }
+
+    private Coroutine actionResultCoroutine;
+    private void HandleActionResult(string msg)
+    {
+        if (textActionResult == null) return;
+        
+        if (actionResultCoroutine != null) StopCoroutine(actionResultCoroutine);
+        actionResultCoroutine = StartCoroutine(ShowActionResultRoutine(msg));
+    }
+
+    private System.Collections.IEnumerator ShowActionResultRoutine(string msg)
+    {
+        textActionResult.text = msg;
+        textActionResult.gameObject.SetActive(true);
+        
+        // 단순하게 일정 시간 대기 후 숨김 (추후 CanvasGroup Alpha 조절로 페이드 가능)
+        yield return new WaitForSeconds(actionResultDuration);
+        
+        textActionResult.gameObject.SetActive(false);
+        actionResultCoroutine = null;
     }
 
     private void HandleClueFound(string clueId)

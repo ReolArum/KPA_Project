@@ -115,6 +115,7 @@ public class ExplorationManager : MonoBehaviour
 #endif
 
     private ExplorationNodeData nearInteractionNode;
+    private string lastTriggeredNodeId; // [ADD] 현재 혹은 방금 상호작용한 노드 ID 수집용
 
     void Update()
     {
@@ -193,18 +194,44 @@ public class ExplorationManager : MonoBehaviour
             if (Vector3.Distance(startPoint, hitPos) > 0.1f)
             {
                 var navPath = CalculateNavMeshPath(startPoint, hitPos);
-                newSegment.AddRange(navPath);
+                
+                // [ADD] 경로 추가 전 남은 시간 체크
+                float pathTime = CalculatePathTime(navPath, startPoint);
+                if (currentState.predictedTime + pathTime <= currentState.remainingTime)
+                {
+                    newSegment.AddRange(navPath);
+                    currentState.pathSegments.Add(newSegment);
+                    lastAddedPoint = hitPos;
+                    UpdatePredictedTime();
+                    GameEvents.RaiseExplorationUpdated(currentState);
+                }
+                else
+                {
+                    isDrawing = false;
+                    Debug.Log("Cannot start path: Exceeds remaining time!");
+                }
             }
             else
             {
                 newSegment.Add(hitPos);
+                currentState.pathSegments.Add(newSegment);
+                lastAddedPoint = hitPos;
+                UpdatePredictedTime();
+                GameEvents.RaiseExplorationUpdated(currentState);
             }
-
-            currentState.pathSegments.Add(newSegment);
-            lastAddedPoint = hitPos;
-            UpdatePredictedTime();
-            GameEvents.RaiseExplorationUpdated(currentState);
         }
+    }
+
+    private float CalculatePathTime(List<Vector3> points, Vector3 start)
+    {
+        float dist = 0;
+        Vector3 curr = start;
+        foreach (var p in points)
+        {
+            dist += Vector3.Distance(curr, p);
+            curr = p;
+        }
+        return dist / moveSpeed;
     }
 
     private void UpdateDrawing()
@@ -225,10 +252,23 @@ public class ExplorationManager : MonoBehaviour
             {
                 if (currentState.pathSegments.Count > 0)
                 {
-                    currentState.pathSegments[currentState.pathSegments.Count - 1].Add(hitPos);
-                    lastAddedPoint = hitPos;
-                    UpdatePredictedTime(); // [ADD] 예상 시간 갱신
-                    GameEvents.RaiseExplorationUpdated(currentState);
+                    // [ADD] 남은 시간 내에서만 그릴 수 있도록 제한
+                    float addedDist = Vector3.Distance(lastAddedPoint, hitPos);
+                    float addedTime = addedDist / moveSpeed;
+
+                    if (currentState.predictedTime + addedTime <= currentState.remainingTime)
+                    {
+                        currentState.pathSegments[currentState.pathSegments.Count - 1].Add(hitPos);
+                        lastAddedPoint = hitPos;
+                        UpdatePredictedTime(); // 예상 시간 갱신
+                        GameEvents.RaiseExplorationUpdated(currentState);
+                    }
+                    else
+                    {
+                        // 시간을 초과하면 그리기 중단 (시각적 피드백은 UI에서 처리)
+                        isDrawing = false;
+                        Debug.Log("Cannot draw more: Out of time!");
+                    }
                 }
             }
         }
@@ -362,14 +402,14 @@ public class ExplorationManager : MonoBehaviour
     private void ScanSceneMarkers()
     {
         // 시작 마커
-        var startMarker = FindFirstObjectByType<ExplorationStartMarker>();
+        var startMarker = Object.FindAnyObjectByType<ExplorationStartMarker>();
         startPositionOverride = (startMarker != null) ? (Vector3?)startMarker.transform.position : null;
         if (startMarker != null)
             Debug.Log($"[MarkerScan] 시작 마커 감지: {startMarker.transform.position}");
 
         // 노드 마커
         nodePositionOverrides.Clear();
-        var nodeMarkers = FindObjectsByType<ExplorationNodeMarker>(FindObjectsSortMode.None);
+        var nodeMarkers = Object.FindObjectsByType<ExplorationNodeMarker>(FindObjectsInactive.Exclude);
         foreach (var marker in nodeMarkers)
         {
             if (string.IsNullOrEmpty(marker.nodeId))
@@ -496,42 +536,55 @@ public class ExplorationManager : MonoBehaviour
 
     private void ScanNearbyNodes()
     {
+        ExplorationNodeData currentTriggerNode = null;
+
         foreach (var node in stageData.nodes)
         {
-            // 이미 처리된 노드는 스킵 (단서 수집 완료 or 이벤트 발동 완료)
-            if (currentState.triggeredNodeIds.Contains(node.nodeId)) continue;
+            // 1. 이미 처리된 1회용 노드는 스킵 (단서 수집 완료 or 이벤트 발동 완료)
+            if (node.isOneTime && currentState.triggeredNodeIds.Contains(node.nodeId)) continue;
 
             Vector3 nodePos = GetNodePosition(node);
-            Vector3 diff = currentState.currentPosition - nodePos;
-            float distSqr = diff.sqrMagnitude;
+            float distSqr = (currentState.currentPosition - nodePos).sqrMagnitude;
+            
+            float interactionRangeSqr = node.interactionRange * node.interactionRange;
+            float clueRangeSqr = node.clueRange * node.clueRange;
 
-            // ── 1. 단서 아이템 (Clue): clueRange 진입 시 자동 수집, 이벤트 없음 ──
-            if (node.eventType == ExplorationEventType.Clue)
+            // 2. 현재 어떤 노드 범위 안에 있는지 체크
+            bool inInteraction = (node.eventType != ExplorationEventType.None && node.eventType != ExplorationEventType.Clue && distSqr <= interactionRangeSqr);
+            bool inClue = (node.eventType == ExplorationEventType.Clue && distSqr <= clueRangeSqr);
+
+            if (inInteraction || inClue)
             {
-                float rangeSqr = node.clueRange * node.clueRange;
-                if (distSqr <= rangeSqr)
+                // 방금 발동했던 노드 안에 아직 있다면 스킵 (재발동 방어)
+                if (node.nodeId == lastTriggeredNodeId) 
                 {
-                    currentState.triggeredNodeIds.Add(node.nodeId);
+                    currentTriggerNode = node; // 여전히 이 노드 범위 내임
+                    continue; 
+                }
+
+                // 3. 발동! (1회용이면 기록)
+                if (node.isOneTime) currentState.triggeredNodeIds.Add(node.nodeId);
+                lastTriggeredNodeId = node.nodeId;
+                
+                if (inClue)
+                {
                     currentState.foundObjectIds.Add(node.nodeId);
                     GameEvents.RaiseExplorationClueFound(node.nodeName ?? node.nodeId);
                     Debug.Log($"[Exploration] 단서 수집: {node.nodeName ?? node.nodeId}");
                 }
-                continue; // 단서는 이벤트 발동 없음
-            }
-
-            // ── 2. 이벤트 노드 (Hazard/Obstacle/Interactive/Reward/Exit) ──
-            //    interactionRange 진입 시 자동으로 이벤트 발생 + 탐사 일시정지
-            if (node.eventType != ExplorationEventType.None)
-            {
-                float rangeSqr = node.interactionRange * node.interactionRange;
-                if (distSqr <= rangeSqr)
+                else
                 {
-                    currentState.triggeredNodeIds.Add(node.nodeId);
                     Debug.Log($"[Exploration] 이벤트 발동: {node.nodeId} ({node.eventType})");
                     TriggerEvent(node);
-                    return; // 이벤트 발동 시 즉시 스캔 중단 (일시정지 상태로 전환)
+                    return; // 이벤트 발동 시 즉시 스캔 중단
                 }
             }
+        }
+
+        // 4. 추적 중인 노드 범위를 완전히 벗어났다면 ID 초기화 (재발동 가능하게 함)
+        if (currentTriggerNode == null)
+        {
+            lastTriggeredNodeId = null;
         }
     }
 
@@ -597,6 +650,13 @@ public class ExplorationManager : MonoBehaviour
     {
         SetPhase(ExplorationPhase.Result);
         
+        // [FIX] GameManager가 빌드 런타임 외 씬 단독 테스트 시 없을 수 있음
+        if (GameManager.Instance == null)
+        {
+            Debug.LogWarning("GameManager instance not found. Exploration results will not be saved.");
+            return;
+        }
+
         // GameState에 결과 반영
         var state = GameManager.Instance.State;
         state.gold += currentState.collectedGold;
@@ -616,7 +676,11 @@ public class ExplorationManager : MonoBehaviour
     {
         SetPhase(ExplorationPhase.Result);
         GameEvents.RaiseActionResult($"탐사 실패: {reason}");
-        SaveSystem.Save(GameManager.Instance.State);
+        
+        if (GameManager.Instance != null)
+        {
+            SaveSystem.Save(GameManager.Instance.State);
+        }
     }
 
     public void ExitExploration()

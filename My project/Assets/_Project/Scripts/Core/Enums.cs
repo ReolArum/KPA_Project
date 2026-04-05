@@ -86,7 +86,8 @@ public enum ExplorationChoiceType
     EnvObjectUse,  // 발견한 환경 오브젝트 사용
     Bypass,        // 우회 (시간 소모)
     BruteForce,    // 강행 (위험 감수)
-    Cancel         // 물러나기
+    Cancel,         // 물러나기
+    Exit            // [ADD] 탐사 탈출 (정산으로 이동)
 }
 
 public enum ExplorationPhase
