@@ -42,6 +42,7 @@ public class ExplorationManager : MonoBehaviour
     // [ADD] 씬 마커 기반 위치 오버라이드 (ScriptableObject 원본 보호)
     private Dictionary<string, Vector3> nodePositionOverrides = new Dictionary<string, Vector3>();
     private Vector3? startPositionOverride;
+    private Vector3 lastScanPosition; // [ADD] 최적화: 마지막으로 노드 스캔을 수행한 위치
 
     void Awake()
     {
@@ -123,56 +124,13 @@ public class ExplorationManager : MonoBehaviour
         _isPointerOverUI = UnityEngine.EventSystems.EventSystem.current != null &&
                            UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject();
 
-#if !ENABLE_INPUT_SYSTEM
-        // Legacy Input Handling
-        if (currentState.phase == ExplorationPhase.Planning)
-        {
-            HandlePlanningInput();
-        }
-        else if (currentState.phase == ExplorationPhase.Moving)
-        {
-            HandleMovingInput();
-        }
-#else
         // New Input System: Drawing Update (지속적인 드래그 처리)
         if (currentState.phase == ExplorationPhase.Planning && isDrawing)
         {
             UpdateDrawing();
         }
-#endif
     }
 
-    private void HandleMovingInput()
-    {
-        // 상호작용 키 (기본 E) 감지
-        if (Input.GetKeyDown(interactKey) && nearInteractionNode != null)
-        {
-            TriggerEvent(nearInteractionNode);
-        }
-    }
-
-    private void HandlePlanningInput()
-    {
-        // 1. 좌클릭: 그리기 시작 및 드래그
-        if (Input.GetMouseButtonDown(0))
-        {
-            StartDrawing();
-        }
-        else if (Input.GetMouseButton(0) && isDrawing)
-        {
-            UpdateDrawing();
-        }
-        else if (Input.GetMouseButtonUp(0))
-        {
-            isDrawing = false;
-        }
-
-        // 2. 우클릭: 실행 취소 (마지막 세그먼트 삭제)
-        if (Input.GetMouseButtonDown(1))
-        {
-            UndoLastSegment();
-        }
-    }
 
     private void StartDrawing()
     {
@@ -290,12 +248,8 @@ public class ExplorationManager : MonoBehaviour
         position = Vector3.zero;
         
         Vector2 mousePos;
-#if ENABLE_INPUT_SYSTEM
         if (pointAction == null) return false;
         mousePos = pointAction.ReadValue<Vector2>();
-#else
-        mousePos = Input.mousePosition;
-#endif
 
         var cam = Camera.main;
         if (cam == null) return false;
@@ -383,12 +337,9 @@ public class ExplorationManager : MonoBehaviour
 
         Vector3 spawnPos = startPositionOverride ?? data.startPosition;
         currentState.Reset(data.limitTime, data.maxChoices, spawnPos);
+        lastScanPosition = spawnPos; // 스캔 위치 초기화
         
-        // [ADD] 플레이어 비주얼 위치 동기화 (Snap)
-        if (playerTransform != null)
-        {
-            playerTransform.position = spawnPos;
-        }
+        SyncVisualPosition();
         
         GameEvents.RaiseActionResult($"탐사 시작: {data.stageName}");
         GameEvents.RaiseExplorationStarted(data, currentState); // [ADD] UI 시작 이벤트
@@ -505,14 +456,8 @@ public class ExplorationManager : MonoBehaviour
                 ConsumeTime(Time.deltaTime * timeScale);
                 GameEvents.RaiseExplorationUpdated(currentState);
 
-                // [ADD] 플레이어 비주얼 위치 실시간 동기화
-                if (playerTransform != null)
-                {
-                    playerTransform.position = currentState.currentPosition;
-                }
-
-                // [ADD] 실시간 범위 감지 (단서 및 상호작용)
-                ScanNearbyNodes();
+                // [FIX] 비주얼 동기화 및 조건부 노드 스캔 (최적화)
+                SyncVisualPosition();
 
                 if (currentState.remainingTime <= 0)
                 {
@@ -531,6 +476,21 @@ public class ExplorationManager : MonoBehaviour
         if (currentState.phase != ExplorationPhase.Result)
         {
             SetPhase(ExplorationPhase.Planning);
+        }
+    }
+
+    private void SyncVisualPosition()
+    {
+        if (playerTransform != null)
+        {
+            playerTransform.position = currentState.currentPosition;
+        }
+
+        // [OPTIMIZE] 마지막 스캔 위치로부터 일정 거리(0.2m) 이상 이동했을 때만 노드 스캔 수행
+        if (Vector3.Distance(lastScanPosition, currentState.currentPosition) > 0.2f)
+        {
+            lastScanPosition = currentState.currentPosition;
+            ScanNearbyNodes();
         }
     }
 

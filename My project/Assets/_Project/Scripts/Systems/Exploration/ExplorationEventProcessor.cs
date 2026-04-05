@@ -4,6 +4,7 @@ using UnityEngine;
 public class ExplorationEventProcessor : MonoBehaviour
 {
     public static ExplorationEventProcessor Instance { get; private set; }
+    private ExplorationNodeData currentEventNode; // [ADD] 현재 처리 중인 노드 저장
 
     void Awake()
     {
@@ -12,6 +13,7 @@ public class ExplorationEventProcessor : MonoBehaviour
 
     public void ProcessEvent(ExplorationNodeData node)
     {
+        currentEventNode = node; // [ADD] 현재 노드 캐싱
         Debug.Log($"Processing Event: {node.nodeId} ({node.eventType})");
 
         // 2. 가용한 선택지 필터링 (유저 요청: 조건 미충족 시 아예 안 보임)
@@ -19,11 +21,12 @@ public class ExplorationEventProcessor : MonoBehaviour
 
         var expState = ExplorationManager.Instance.currentState;
 
-        // 3. [FIX] 선택권이 없더라도 탈출(Exit) 선택지가 있다면 보여줘야 함
-        bool hasExitChoice = visibleChoices.Exists(c => c.type == ExplorationChoiceType.Exit);
-        if (visibleChoices.Count == 0 || (expState.remainingChoices <= 0 && !hasExitChoice))
+        // 3. [FIX] 강제 패널티 조건 수정
+        // (필터링 단계에서 이미 함정 유무와 선택권 개수를 체크했으므로, 
+        // 최종 가용 선택지가 0개일 때만 패널티를 적용하면 됩니다.)
+        if (visibleChoices.Count == 0)
         {
-            Debug.LogWarning("No available choices or turns! Applying force penalty.");
+            Debug.LogWarning("No available choices! Applying force penalty.");
             
             // 패널티 적용
             expState.remainingTime = Mathf.Max(0, expState.remainingTime - node.forcePenaltyTime);
@@ -56,7 +59,12 @@ public class ExplorationEventProcessor : MonoBehaviour
         {
             // [FIX] 탈출(Exit) 타입은 선택권이 없어도(0이라도) 항상 노출되어야 함
             bool isExitChoice = choice.type == ExplorationChoiceType.Exit;
-            if (expState.remainingChoices <= 0 && !isExitChoice) continue; 
+            
+            // [New] 함정(Hazard)이 아닌 경우에는 선택권 소모가 없으므로 항상 노출
+            bool isHazard = currentEventNode != null && currentEventNode.eventType == ExplorationEventType.Hazard;
+            bool canShowWithoutChoice = !isHazard || isExitChoice;
+
+            if (expState.remainingChoices <= 0 && !canShowWithoutChoice) continue; 
 
             // 개별 선택지 노출 조건 체크
             if (CheckRequirements(choice.ownRequirements, state, expState))
@@ -101,8 +109,11 @@ public class ExplorationEventProcessor : MonoBehaviour
     {
         var expState = ExplorationManager.Instance.currentState;
 
-        // 1. 선택 횟수 차감
-        if (expState.remainingChoices > 0)
+        // 1. 선택 횟수 차감 (유저 요청: 함정 조우 시 && 취소가 아닐 때만 소모)
+        bool isHazard = currentEventNode != null && currentEventNode.eventType == ExplorationEventType.Hazard;
+        bool isCancel = choice.type == ExplorationChoiceType.Cancel;
+
+        if (isHazard && !isCancel && expState.remainingChoices > 0)
         {
             expState.remainingChoices--;
         }

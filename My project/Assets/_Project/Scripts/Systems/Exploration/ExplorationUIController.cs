@@ -59,6 +59,10 @@ public class ExplorationUIController : MonoBehaviour
     [SerializeField] private Transform  clueListContent;
     [SerializeField] private GameObject clueItemPrefab; // [ADD] 단서 항목 프리팹
     [SerializeField] private Button     btnToggleClueList;
+    
+    // [ADD] 최적화용 캐시: 노드 아이디별 강조용 렌더러 리스트
+    private Dictionary<string, List<Renderer>> nodeRendererCache = new Dictionary<string, List<Renderer>>();
+
 
     void OnEnable()
     {
@@ -303,21 +307,36 @@ public class ExplorationUIController : MonoBehaviour
         if (panelResult) panelResult.SetActive(false);
         UpdateHUD(state);
         SpawnNodeIcons(data); // [ADD] 노드 아이콘 생성
+        CacheNodeRenderers(data); // [ADD] 렌더러 미리 캐싱 (최적화)
         HighlightInStageObjects(data); // [ADD] 3D 오브젝트 강조
+    }
+
+    /// <summary>
+    /// 스테이지 시작 시 각 노드 주변의 렌더러를 미리 찾아 캐싱합니다. (매번 OverlapSphere를 돌리지 않음)
+    /// </summary>
+    private void CacheNodeRenderers(ExplorationStageData data)
+    {
+        nodeRendererCache.Clear();
+        foreach (var node in data.nodes)
+        {
+            List<Renderer> renderers = new List<Renderer>();
+            Collider[] cols = Physics.OverlapSphere(node.worldPosition, 1.2f); // 범위 소폭 상향
+            foreach (var col in cols)
+            {
+                var rend = col.GetComponent<Renderer>();
+                if (rend != null) renderers.Add(rend);
+            }
+            nodeRendererCache[node.nodeId] = renderers;
+        }
     }
 
     private void HighlightInStageObjects(ExplorationStageData data)
     {
-        // 프로토타입용: 월드상의 노드 위치 근처에 있는 기즈모나 머티리얼 강조
-        // 실제로는 노드 아이디별로 매핑된 게임 오브젝트를 찾아야 함
         foreach (var node in data.nodes)
         {
-            // 월드 좌표 기준 반경 1.0m 내의 Renderer들을 찾아 강조 색상 적용
-            Collider[] cols = Physics.OverlapSphere(node.worldPosition, 1.0f);
-            foreach (var col in cols)
+            if (nodeRendererCache.TryGetValue(node.nodeId, out var renderers))
             {
-                var rend = col.GetComponent<Renderer>();
-                if (rend != null)
+                foreach (var rend in renderers)
                 {
                     rend.material.EnableKeyword("_EMISSION");
                     rend.material.SetColor("_EmissionColor", interactiveHighlightColor * 0.5f);
@@ -334,19 +353,32 @@ public class ExplorationUIController : MonoBehaviour
         foreach (Transform child in nodeContainer)
             Destroy(child.gameObject);
 
+        var cam = camTop != null && camTop.enabled ? camTop : (camQuarter != null ? camQuarter : Camera.main);
+        if (cam == null) return;
+
         foreach (var node in data.nodes)
         {
             var icon = Instantiate(nodeIconPrefab, nodeContainer);
             
-            // 월드 좌표를 스크린/UI 좌표로 변환 (간단화를 위해 가정한 방식)
-            // 실제 구현에서는 맵의 앵커와 피벗에 따라 보정이 필요할 수 있습니다.
-            icon.transform.localPosition = node.worldPosition; 
+            // [FIX] 월드 좌표를 스크린 좌표로 변환 후 UI 요소에 배치
+            // 아이콘의 Anchor와 Pivot이 (0.5, 0.5)일 때 가장 정확합니다.
+            Vector3 screenPos = cam.WorldToScreenPoint(node.worldPosition);
             
-            // 툴팁이나 이름을 아이콘에 표시할 수도 있습니다.
+            // Z가 0보다 작으면 카메라 뒤에 있는 것이므로 숨김 처리
+            if (screenPos.z < 0) 
+            {
+                icon.gameObject.SetActive(false);
+            }
+            else
+            {
+                icon.transform.position = screenPos;
+            }
+            
+            // 툴팁이나 이름을 아이콘에 표시
             var label = icon.GetComponentInChildren<TMP_Text>();
-            if (label != null) label.text = node.nodeId;
+            if (label != null) label.text = node.nodeName ?? node.nodeId;
             
-            // 이벤트 타입에 따라 색상 변경 등
+            // 이벤트 타입에 따라 색상 변경
             icon.color = node.eventType == ExplorationEventType.Exit ? Color.green : Color.white;
         }
     }
