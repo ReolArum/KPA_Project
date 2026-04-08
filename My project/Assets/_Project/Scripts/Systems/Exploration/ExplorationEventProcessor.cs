@@ -26,16 +26,23 @@ public class ExplorationEventProcessor : MonoBehaviour
         // 최종 가용 선택지가 0개일 때만 패널티를 적용하면 됩니다.)
         if (visibleChoices.Count == 0)
         {
-            Debug.LogWarning("No available choices! Applying force penalty.");
+            Debug.LogWarning("No available choices! Forced to retreat (Redraw Path).");
             
-            // 패널티 적용
-            expState.remainingTime = Mathf.Max(0, expState.remainingTime - node.forcePenaltyTime);
-            expState.collectedGold = Mathf.Max(0, expState.collectedGold - node.forcePenaltyGold);
+            // 함정의 경우 강행 돌파가 삭제되었으므로 후퇴 강제
+            bool isHazard = node.eventType == ExplorationEventType.Hazard;
             
-            GameEvents.RaiseActionResult($"패널티 적용: 시간 -{node.forcePenaltyTime}s / 골드 -{node.forcePenaltyGold}G");
-            
-            // 즉시 이동 재개
-            ExplorationManager.Instance.ResumeMovement(false);
+            if (isHazard)
+            {
+                GameEvents.RaiseActionResult("함정 돌파 불가: 후퇴하여 새로운 경로를 설계해야 합니다.");
+                ExplorationManager.Instance.ResumeMovement(true); // [MOD] 후퇴 강제
+            }
+            else
+            {
+                // 다른 일반 이벤트의 경우 패널티 후 진행 (기존 유지 혹은 정책에 따름)
+                expState.remainingTime = Mathf.Max(0, expState.remainingTime - node.forcePenaltyTime);
+                GameEvents.RaiseActionResult($"패널티 적용: 시간 -{node.forcePenaltyTime}s");
+                ExplorationManager.Instance.ResumeMovement(false);
+            }
             return;
         }
 
@@ -60,11 +67,11 @@ public class ExplorationEventProcessor : MonoBehaviour
             // [FIX] 탈출(Exit) 타입은 선택권이 없어도(0이라도) 항상 노출되어야 함
             bool isExitChoice = choice.type == ExplorationChoiceType.Exit;
             
-            // [New] 함정(Hazard)이 아닌 경우에는 선택권 소모가 없으므로 항상 노출
-            bool isHazard = currentEventNode != null && currentEventNode.eventType == ExplorationEventType.Hazard;
-            bool canShowWithoutChoice = !isHazard || isExitChoice;
-
-            if (expState.remainingChoices <= 0 && !canShowWithoutChoice) continue; 
+            // [MOD] 적(Enemy) 조우 시에만 티켓 보유 여부 체크
+            bool isEnemy = currentEventNode != null && currentEventNode.eventType == ExplorationEventType.Enemy;
+            bool canShowWithoutTicket = !isEnemy || isExitChoice;
+            
+            if (isEnemy && expState.remainingEnemyTickets <= 0 && !isExitChoice) continue; 
 
             // 개별 선택지 노출 조건 체크
             if (CheckRequirements(choice.ownRequirements, state, expState))
@@ -94,11 +101,7 @@ public class ExplorationEventProcessor : MonoBehaviour
                     break;
 
                 case ExplorationRequirement.RequirementType.HasEnvObject:
-                    if (!expState.foundObjectIds.Contains(req.targetId)) return false;
-                    break;
-
-                case ExplorationRequirement.RequirementType.HasClue:
-                    if (!expState.foundObjectIds.Contains(req.targetId)) return false;
+                    if (!expState.foundEnvObjectIds.Contains(req.targetId)) return false;
                     break;
             }
         }
@@ -109,13 +112,13 @@ public class ExplorationEventProcessor : MonoBehaviour
     {
         var expState = ExplorationManager.Instance.currentState;
 
-        // 1. 선택 횟수 차감 (유저 요청: 함정 조우 시 && 취소가 아닐 때만 소모)
-        bool isHazard = currentEventNode != null && currentEventNode.eventType == ExplorationEventType.Hazard;
+        // 1. 선택 횟수 차감 (적 조우 시 && 취소가 아닐 때만 소모)
+        bool isEnemy = currentEventNode != null && currentEventNode.eventType == ExplorationEventType.Enemy;
         bool isCancel = choice.type == ExplorationChoiceType.Cancel;
 
-        if (isHazard && !isCancel && expState.remainingChoices > 0)
+        if (isEnemy && !isCancel && expState.remainingEnemyTickets > 0)
         {
-            expState.remainingChoices--;
+            expState.remainingEnemyTickets--;
         }
 
         // 2. 시간 패널티 소모
@@ -126,19 +129,19 @@ public class ExplorationEventProcessor : MonoBehaviour
         if (!string.IsNullOrEmpty(choice.rewardObjectId))
         {
             // 중복 획득 방지
-            if (!expState.foundObjectIds.Contains(choice.rewardObjectId))
+            if (!expState.foundEnvObjectIds.Contains(choice.rewardObjectId))
             {
-                expState.foundObjectIds.Add(choice.rewardObjectId);
-                GameEvents.RaiseExplorationClueFound(choice.rewardObjectId);
+                expState.foundEnvObjectIds.Add(choice.rewardObjectId);
+                GameEvents.RaiseExplorationClueFound(choice.rewardObjectId); // TODO: RaiseExplorationEnvObjectFound로 리팩토링 고려
             }
         }
 
         // 4. [ADD] 소모성 오브젝트 처리
         if (!string.IsNullOrEmpty(choice.consumedObjectId))
         {
-            if (expState.foundObjectIds.Contains(choice.consumedObjectId))
+            if (expState.foundEnvObjectIds.Contains(choice.consumedObjectId))
             {
-                expState.foundObjectIds.Remove(choice.consumedObjectId);
+                expState.foundEnvObjectIds.Remove(choice.consumedObjectId);
                 Debug.Log($"Object Consumed: {choice.consumedObjectId}");
             }
         }

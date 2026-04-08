@@ -71,7 +71,8 @@ public enum TrainingStat
 public enum ExplorationEventType
 {
     None,
-    Clue,          // [ADD] 단서 아이템 (범위 진입 시 자동 수집, 이벤트 없음)
+    EnvObject,     // [MOD] 환경 오브젝트 (범위 진입 시 자동 수집, 이벤트 없음)
+    Enemy,         // [ADD] 이동형 적 (범위 진입 시 이벤트 발생, 선택권 사용 가능)
     Hazard,        // 함정/위험 (범위 진입 시 이벤트 발생)
     Obstacle,      // 장애물 (범위 진입 시 이벤트 발생)
     Interactive,   // 상호작용 오브젝트 (범위 진입 시 이벤트 발생)

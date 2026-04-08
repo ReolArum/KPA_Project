@@ -336,7 +336,7 @@ public class ExplorationManager : MonoBehaviour
         ScanSceneMarkers();
 
         Vector3 spawnPos = startPositionOverride ?? data.startPosition;
-        currentState.Reset(data.limitTime, data.maxChoices, spawnPos);
+        currentState.Reset(data.limitTime, data.maxEnemyTickets, spawnPos);
         lastScanPosition = spawnPos; // 스캔 위치 초기화
         
         SyncVisualPosition();
@@ -401,7 +401,6 @@ public class ExplorationManager : MonoBehaviour
         if (currentState.phase != ExplorationPhase.Planning) return;
         
         currentState.plannedPath.Add(worldPos);
-        // 예상 소모 시간 계산 UI 갱신 로직 등이 들어갈 자리
     }
 
     public void ClearPath()
@@ -409,7 +408,7 @@ public class ExplorationManager : MonoBehaviour
         if (currentState.phase != ExplorationPhase.Planning) return;
         currentState.pathSegments.Clear();
         currentState.plannedPath.Clear();
-        currentState.predictedTime = 0; // [ADD] 예상 시간 초기화
+        currentState.predictedTime = 0;
         GameEvents.RaiseExplorationUpdated(currentState);
     }
 
@@ -426,7 +425,7 @@ public class ExplorationManager : MonoBehaviour
         }
 
         SetPhase(ExplorationPhase.Moving);
-        if (movementCoroutine != null) StopCoroutine(movementCoroutine); // [ADD] 기존이동 코루틴 정지
+        if (movementCoroutine != null) StopCoroutine(movementCoroutine);
         movementCoroutine = StartCoroutine(MovementRoutine());
     }
 
@@ -500,20 +499,20 @@ public class ExplorationManager : MonoBehaviour
 
         foreach (var node in stageData.nodes)
         {
-            // 1. 이미 처리된 1회용 노드는 스킵 (단서 수집 완료 or 이벤트 발동 완료)
+            // 1. 이미 처리된 1회용 노드는 스킵 (환경 오브젝트 수집 완료 or 이벤트 발동 완료)
             if (node.isOneTime && currentState.triggeredNodeIds.Contains(node.nodeId)) continue;
 
             Vector3 nodePos = GetNodePosition(node);
             float distSqr = (currentState.currentPosition - nodePos).sqrMagnitude;
             
             float interactionRangeSqr = node.interactionRange * node.interactionRange;
-            float clueRangeSqr = node.clueRange * node.clueRange;
+            float envObjectRangeSqr = node.envObjectRange * node.envObjectRange;
 
             // 2. 현재 어떤 노드 범위 안에 있는지 체크
-            bool inInteraction = (node.eventType != ExplorationEventType.None && node.eventType != ExplorationEventType.Clue && distSqr <= interactionRangeSqr);
-            bool inClue = (node.eventType == ExplorationEventType.Clue && distSqr <= clueRangeSqr);
+            bool inInteraction = (node.eventType != ExplorationEventType.None && node.eventType != ExplorationEventType.EnvObject && distSqr <= interactionRangeSqr);
+            bool inEnvObject = (node.eventType == ExplorationEventType.EnvObject && distSqr <= envObjectRangeSqr);
 
-            if (inInteraction || inClue)
+            if (inInteraction || inEnvObject)
             {
                 // 방금 발동했던 노드 안에 아직 있다면 스킵 (재발동 방어)
                 if (node.nodeId == lastTriggeredNodeId) 
@@ -526,11 +525,11 @@ public class ExplorationManager : MonoBehaviour
                 if (node.isOneTime) currentState.triggeredNodeIds.Add(node.nodeId);
                 lastTriggeredNodeId = node.nodeId;
                 
-                if (inClue)
+                if (inEnvObject)
                 {
-                    currentState.foundObjectIds.Add(node.nodeId);
-                    GameEvents.RaiseExplorationClueFound(node.nodeName ?? node.nodeId);
-                    Debug.Log($"[Exploration] 단서 수집: {node.nodeName ?? node.nodeId}");
+                    currentState.foundEnvObjectIds.Add(node.nodeId);
+                    GameEvents.RaiseExplorationEnvObjectFound(node.nodeName ?? node.nodeId);
+                    Debug.Log($"[Exploration] 환경 오브젝트 수집: {node.nodeName ?? node.nodeId}");
                 }
                 else
                 {
@@ -622,7 +621,7 @@ public class ExplorationManager : MonoBehaviour
         state.gold += currentState.collectedGold;
         state.todayGoldEarned += currentState.collectedGold;
         
-        foreach (var id in currentState.foundObjectIds)
+        foreach (var id in currentState.foundEnvObjectIds)
         {
             if (!state.explorationFoundKeys.Contains(id))
                 state.explorationFoundKeys.Add(id);

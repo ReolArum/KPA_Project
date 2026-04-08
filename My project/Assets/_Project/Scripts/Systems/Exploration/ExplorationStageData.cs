@@ -6,8 +6,8 @@ public class ExplorationStageData : ScriptableObject
 {
     public string stageName;
     public float  limitTime = 120f;   // 기본 2분
-    public int    maxChoices = 5;     // -1이면 무제한 (유저 요청: 유연한 설계)
-    public Vector3 startPosition;     // [ADD] 탐사 시작 지점
+    public int    maxEnemyTickets = 5; // [MOD] 적 전용 선택권 개수 (-1이면 무제한)
+    public Vector3 startPosition;     // 탐사 시작 지점
 
     [Header("Map Visuals")]
     public Sprite blueprintSprite;    // 지도 배경 (청사진)
@@ -21,13 +21,13 @@ public class ExplorationStageData : ScriptableObject
 public class ExplorationNodeData
 {
     public string               nodeId;
-    public string               nodeName;         // UI에 표시될 이름 (단서 등)
+    public string               nodeName;         // UI에 표시될 이름 (환경 오브젝트 등)
     public Vector3              worldPosition;
     public ExplorationEventType eventType;
     public bool                 isOneTime = true; // [ADD] 1회용 여부 (기본 true)
 
     [Header("Ranges")]
-    public float clueRange = 2.0f;        // 단서 자동 획득 범위
+    public float envObjectRange = 2.0f;    // [MOD] 환경 오브젝트 자동 획득 범위
     public float interactionRange = 1.5f; // 상호작용 프롬프트 노출 범위
 
     [Header("Visual Novel Cutscene")]
@@ -59,7 +59,7 @@ public class VNDialogueStep
 [System.Serializable]
 public class ExplorationRequirement
 {
-    public enum RequirementType { None, StatAtLeast, HasItem, HasEnvObject, HasClue }
+    public enum RequirementType { None, StatAtLeast, HasItem, HasEnvObject }
     
     public RequirementType type;
     public TrainingStat    statType; // StatAtLeast 일 때 사용
@@ -77,7 +77,7 @@ public class ExplorationChoiceData
     public int   goldReward;
     public float timePenalty;         // 소모 시간
     public float timeGain;            // 시각 획득 (있을 경우)
-    public string rewardObjectId;     // 획득하는 단서/오브젝트 ID
+    public string rewardObjectId;     // 획득하는 환경 오브젝트 ID
     public string consumedObjectId;   // [ADD] 이 선택 시 소모될 보관 중인 오브젝트 ID (없으면 유지)
     public bool   shouldRedrawPath;   // 이 선택 후 경로를 다시 그려야 하는지 여부
     

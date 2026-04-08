@@ -52,13 +52,13 @@ public class ExplorationUIController : MonoBehaviour
     private int                  currentVNIndex;
     private System.Action        onVNComplete;
 
-    [Header("Interaction & Clues")]
+    [Header("Interaction & Environment Objects")]
     [SerializeField] private GameObject panelInteractPrompt;
     [SerializeField] private TMP_Text   textInteractPrompt;
-    [SerializeField] private GameObject panelClueList;
-    [SerializeField] private Transform  clueListContent;
-    [SerializeField] private GameObject clueItemPrefab; // [ADD] 단서 항목 프리팹
-    [SerializeField] private Button     btnToggleClueList;
+    [SerializeField] private GameObject panelEnvObjectList;
+    [SerializeField] private Transform  envObjectListContent;
+    [SerializeField] private GameObject envObjectItemPrefab; // [ADD] 환경 오브젝트 항목 프리팹
+    [SerializeField] private Button     btnToggleEnvObjectList;
     
     // [ADD] 최적화용 캐시: 노드 아이디별 강조용 렌더러 리스트
     private Dictionary<string, List<Renderer>> nodeRendererCache = new Dictionary<string, List<Renderer>>();
@@ -70,7 +70,7 @@ public class ExplorationUIController : MonoBehaviour
         GameEvents.OnExplorationUpdated += HandleExplorationUpdated;
         GameEvents.OnExplorationEventTriggered += HandleEventTriggered;
         GameEvents.OnExplorationPhaseChanged += HandlePhaseChanged;
-        GameEvents.OnExplorationClueFound += HandleClueFound;
+        GameEvents.OnExplorationEnvObjectFound += HandleEnvObjectFound;
         GameEvents.OnExplorationVNStarted += HandleVNStarted;
         GameEvents.OnExplorationInteractionPrompt += HandleInteractionPrompt;
         GameEvents.OnActionResult += HandleActionResult; // [ADD] 결과 알림 구독
@@ -82,7 +82,7 @@ public class ExplorationUIController : MonoBehaviour
         GameEvents.OnExplorationUpdated -= HandleExplorationUpdated;
         GameEvents.OnExplorationEventTriggered -= HandleEventTriggered;
         GameEvents.OnExplorationPhaseChanged -= HandlePhaseChanged;
-        GameEvents.OnExplorationClueFound -= HandleClueFound;
+        GameEvents.OnExplorationEnvObjectFound -= HandleEnvObjectFound;
         GameEvents.OnExplorationVNStarted -= HandleVNStarted;
         GameEvents.OnExplorationInteractionPrompt -= HandleInteractionPrompt;
         GameEvents.OnActionResult -= HandleActionResult;
@@ -105,19 +105,26 @@ public class ExplorationUIController : MonoBehaviour
             });
         }
 
-        // [ADD] 단서 목록 토글 리스너
-        if (btnToggleClueList && panelClueList)
+        // [ADD] 환경 오브젝트 목록 토글 리스너
+        if (btnToggleEnvObjectList && panelEnvObjectList)
         {
-            btnToggleClueList.onClick.AddListener(() => panelClueList.SetActive(!panelClueList.activeSelf));
+            btnToggleEnvObjectList.onClick.AddListener(() => panelEnvObjectList.SetActive(!panelEnvObjectList.activeSelf));
         }
 
         if (panelResult) panelResult.SetActive(false);
-        if (panelClueList) panelClueList.SetActive(false);
+        if (panelEnvObjectList) panelEnvObjectList.SetActive(false);
 
-        // 초기 카메라 설정
-        if (camTop && camQuarter)
+        // 초기 카메라 설정 (회의록 지침: FOV 26, 각도 45/135)
+        if (camTop)
         {
+            camTop.fieldOfView = 26f;
+            camTop.transform.rotation = Quaternion.Euler(45f, 45f, 0f); // Top-down 느낌의 45도
             camTop.enabled = true;
+        }
+        if (camQuarter)
+        {
+            camQuarter.fieldOfView = 26f;
+            camQuarter.transform.rotation = Quaternion.Euler(45f, 135f, 0f); // Quarter-view 느낌의 135도
             camQuarter.enabled = false;
         }
     }
@@ -144,8 +151,8 @@ public class ExplorationUIController : MonoBehaviour
         
         if (textChoices)
         {
-            string count = state.remainingChoices == -1 ? "무제한" : state.remainingChoices.ToString();
-            textChoices.text = $"선택권: {count}";
+            string count = state.remainingEnemyTickets == -1 ? "무제한" : state.remainingEnemyTickets.ToString();
+            textChoices.text = $"적 전용 선택권: {count}";
         }
 
         if (textGold) textGold.text = $"{state.collectedGold} G";
@@ -253,28 +260,28 @@ public class ExplorationUIController : MonoBehaviour
         actionResultCoroutine = null;
     }
 
-    private void HandleClueFound(string clueId)
+    private void HandleEnvObjectFound(string objId)
     {
         // 알림 표시
-        GameEvents.RaiseActionResult($"단서 발견: {clueId}");
+        GameEvents.RaiseActionResult($"환경 오브젝트 발견: {objId}");
         
         // 목록 갱신
-        RefreshClueList();
+        RefreshEnvObjectList();
     }
 
-    private void RefreshClueList()
+    private void RefreshEnvObjectList()
     {
-        if (clueListContent == null || clueItemPrefab == null) return;
+        if (envObjectListContent == null || envObjectItemPrefab == null) return;
 
         // 기존 항목 제거
-        foreach (Transform child in clueListContent)
+        foreach (Transform child in envObjectListContent)
             Destroy(child.gameObject);
 
-        // 현재 획득한 단서들 생성
-        var foundIds = ExplorationManager.Instance.currentState.foundObjectIds;
+        // 현재 획득한 환경 오브젝트들 생성
+        var foundIds = ExplorationManager.Instance.currentState.foundEnvObjectIds;
         foreach (var id in foundIds)
         {
-            var item = Instantiate(clueItemPrefab, clueListContent);
+            var item = Instantiate(envObjectItemPrefab, envObjectListContent);
             var label = item.GetComponentInChildren<TMP_Text>();
             if (label) label.text = id;
         }
@@ -466,7 +473,7 @@ public class ExplorationUIController : MonoBehaviour
 
         bool success = state.remainingTime > 0;
         textResultStatus.text = success ? "탐사 성공!" : "탐사 실패 (시간 초과)";
-        textResultSummary.text = $"획득 골드: {state.collectedGold}G\n발견한 오브젝트: {state.foundObjectIds.Count}개";
+        textResultSummary.text = $"획득 골드: {state.collectedGold}G\n발견한 환경 오브젝트: {state.foundEnvObjectIds.Count}개";
         
         panelResult.SetActive(true);
     }

@@ -34,8 +34,8 @@ public static class GameEvents
     public static event Action<ExplorationPhase> OnExplorationPhaseChanged;
     public static void RaiseExplorationPhaseChanged(ExplorationPhase p) => OnExplorationPhaseChanged?.Invoke(p);
 
-    public static event Action<string> OnExplorationClueFound;
-    public static void RaiseExplorationClueFound(string clueId) => OnExplorationClueFound?.Invoke(clueId);
+    public static event System.Action<string> OnExplorationEnvObjectFound;
+    public static void RaiseExplorationEnvObjectFound(string objId) => OnExplorationEnvObjectFound?.Invoke(objId);
 
     public static event Action<List<VNDialogueStep>, Action> OnExplorationVNStarted;
     public static void RaiseExplorationVNStarted(List<VNDialogueStep> steps, Action onComplete) => OnExplorationVNStarted?.Invoke(steps, onComplete);
