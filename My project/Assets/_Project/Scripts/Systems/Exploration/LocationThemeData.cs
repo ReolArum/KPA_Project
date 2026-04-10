@@ -17,6 +17,7 @@ public class LocationThemeData : ScriptableObject
     public bool showShopButton = false;
     public bool showQuestButton = false;
     public bool showRestButton = false;
+    public DialogueNodeData talkNode; // [NEW] 대화 버튼 클릭 시 실행될 노드
 
     [TextArea]
     public string description = "이 장소에 대한 설명입니다.";

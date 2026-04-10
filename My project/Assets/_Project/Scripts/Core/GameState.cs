@@ -17,19 +17,21 @@ public class GameState
     public const int DaySlotCount = 4;
     public const int MaxPlayerActions = 4;
 
-    // ===== 기본 =====
-    public int day = 1;
-    public int gold = 100; // Changed initial value from 0 to 100
-    public int reputation = 0;
+    // ===== [MOD] 모듈화된 데이터 그룹 =====
+    public PlayerData player = new PlayerData();
+    public FighterData fighter = new FighterData(DaySlotCount);
+    public Inventory inventory = new Inventory();
 
-    // ===== 전투체 스케줄 =====
-    public FighterSlot[] fighterSchedule;
-    public FighterSlot[] yesterdaySchedule; // [NEW] 어제 스케줄 백업용
-    public int fighterSlotProgress = 0;
+    // ===== 기존 호환성 프로퍼티 (추후 순차적 제거 가능) =====
+    public int day { get => playerDay; set => playerDay = value; }
+    private int playerDay = 1;
 
-    // [NEW] 장소별 시설/상태 데이터
+    public int gold { get => player.gold; set => player.gold = value; }
+    public int stress { get => fighter.stress; set => fighter.stress = value; }
+    public int fatigue { get => fighter.fatigue; set => fighter.fatigue = value; }
+
+    // ===== [NEW] 장소별 시설/상태 데이터 =====
     public int facilityUpgradeLevel = 0; // 훈련장 업그레이드 단계
-    public bool dailyRerollUsed = false; // 오늘 의뢰 리롤 사용 여부
     public float trainingEfficiency = 1.0f; // 음식 등에 의한 훈련 효율 버프
 
     // ===== 플레이어 =====
@@ -40,15 +42,8 @@ public class GameState
     public NightActionType nightChoice = NightActionType.Rest;
     public bool nightCompleted = false;
 
-    // ===== 스탯 =====
-    public Dictionary<TrainingStat, int> stats = new();
-
     // ===== 숙련도 =====
     public Dictionary<ProficiencyType, Proficiency> proficiencies = new();
-
-    // ===== 컨디션 =====
-    public int stress = 0;
-    public int fatigue = 0;
 
     // ===== 엔딩 변수 =====
     public EndingVariables endingVars = new();
@@ -76,35 +71,25 @@ public class GameState
     // ===== 생성자 =====
     public GameState()
     {
-        foreach (TrainingStat s in Enum.GetValues(typeof(TrainingStat)))
-            stats[s] = 0;
-
         foreach (ProficiencyType p in Enum.GetValues(typeof(ProficiencyType)))
             proficiencies[p] = new Proficiency();
-
-        fighterSchedule = new FighterSlot[DaySlotCount];
-        yesterdaySchedule = new FighterSlot[DaySlotCount];
-        for (int i = 0; i < DaySlotCount; i++)
-        {
-            fighterSchedule[i] = new FighterSlot();
-            yesterdaySchedule[i] = new FighterSlot();
-        }
+            
+        // FighterData 및 PlayerData는 선언 시 초기화됨
     }
 
-    // ===== 스탯 접근 =====
-    public int GetStat(TrainingStat s) => stats.ContainsKey(s) ? stats[s] : 0;
-
+    // ===== [MOD] 스탯 접근 (Fighter 모듈로 위임) =====
+    public int GetStat(TrainingStat s) => fighter.GetStat(s);
+ 
     public void AddStat(TrainingStat s, int amount)
     {
-        if (!stats.ContainsKey(s)) stats[s] = 0;
         float multiplier = GetProf(ProficiencyType.Training).TrainingStatMultiplier;
-        stats[s] += Mathf.RoundToInt(amount * multiplier);
+        fighter.AddStat(s, amount, multiplier);
     }
-
+ 
     public int GetTotalPower()
     {
         int total = 0;
-        foreach (var kv in stats)
+        foreach (var kv in fighter.stats)
             total += kv.Value;
         return total;
     }
@@ -128,7 +113,7 @@ public class GameState
     // ===== 전투 스탯 계산 ★ =====
     public CombatBaseStats GetCombatStats()
     {
-        return combatData.CalculateCombatStats(this);
+        return CombatStatProcessor.CalculateStats(this, combatData);
     }
 
     // ===== 스킬 슬롯 수 ★ =====
@@ -155,33 +140,27 @@ public class GameState
         // [NEW] 하루가 넘어가기 전 현재 스케줄을 '어제 스케줄'로 백업
         for (int i = 0; i < DaySlotCount; i++)
         {
-            yesterdaySchedule[i].type = fighterSchedule[i].type;
-            yesterdaySchedule[i].trainingStat = fighterSchedule[i].trainingStat;
+            fighter.yesterdaySchedule[i].type = fighter.schedule[i].type;
+            fighter.yesterdaySchedule[i].trainingStat = fighter.schedule[i].trainingStat;
         }
 
-        day++;
-        fighterSlotProgress = 0;
-        playerActionsUsed = 0;
-        playerLocation = MapLocation.None;
+        playerDay++;
+        fighter.slotProgress = 0;
+        player.actionsUsed = 0;
+        player.location = MapLocation.None;
         nightChoice = NightActionType.Rest;
         nightCompleted = false;
-        todayTrainingCount = 0;
-        todayGoldEarned = 0;
-        dailyRerollUsed = false; // Added new field reset
-        // 피로도에 따른 기본 효율 조정 (버프는 초기화)
-        trainingEfficiency = 1.0f; // Added new field reset
-        // 스케줄(type, trainingStat)은 유지 → 플레이어가 설정한 스케줄이 다음 날도 유지됨
-        // fighterSchedule은 건드리지 않음
+        fighter.todayTrainingCount = 0;
+        player.todayGoldEarned = 0;
+        trainingEfficiency = 1.0f;
+
+        // [QuestManager가 있다면 리롤 상태 리셋]
+        if (QuestManager.Instance != null) QuestManager.Instance.SetRerollUsed(false);
     }
 
     // ===== 전체 초기화 (새 게임) =====
     public void ResetAll()
     {
-        day = 1;
-        gold = 0;
-        reputation = 0;
-        stress = 0;
-        fatigue = 0;
         fighterSlotProgress = 0;
         playerActionsUsed = 0;
         playerLocation = MapLocation.None;

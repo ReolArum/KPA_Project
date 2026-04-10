@@ -30,6 +30,9 @@ public class MainGameUIController : MonoBehaviour
     [SerializeField] private GameObject panelWorkContent;
     [SerializeField] private GameObject panelRestContent;
 
+    [Header("Navigation Buttons")]
+    [SerializeField] private Button btnOpenCharacterUI;
+
     [Header("Day Map")]
     [SerializeField] private Button btnMapHome;
     [SerializeField] private Button btnMapShop;
@@ -68,6 +71,7 @@ public class MainGameUIController : MonoBehaviour
         SetupScheduleButtons();
         SetupCalendarButtons();
         if (btnNextDay) btnNextDay.onClick.AddListener(() => gm.OnClickNextDay());
+        if (btnOpenCharacterUI) btnOpenCharacterUI.onClick.AddListener(() => GameManager.Instance.ToggleCharacterUI());
     }
 
     void OnEnable()
@@ -184,9 +188,9 @@ public class MainGameUIController : MonoBehaviour
 
     void RefreshScheduleGrid(GameState state)
     {
-        for (int i = 0; i < slotViews.Count && i < state.fighterSchedule.Length; i++)
+        for (int i = 0; i < slotViews.Count && i < state.fighter.schedule.Length; i++)
         {
-            var slot = state.fighterSchedule[i];
+            var slot = state.fighter.schedule[i];
             string label = slot.type switch {
                 FighterSlotType.Training => GameManager.GetStatName(slot.trainingStat),
                 FighterSlotType.PartTime => "알바",

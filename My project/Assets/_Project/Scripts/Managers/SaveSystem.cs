@@ -85,6 +85,14 @@ public static class SaveSystem
         public bool   isCompleted;
     }
 
+    // [NEW] 인벤토리 저장
+    [System.Serializable]
+    private class InventoryItemDto
+    {
+        public string itemId;
+        public int count;
+    }
+
     [System.Serializable]
     private class SaveData
     {
@@ -140,6 +148,9 @@ public static class SaveSystem
         public QuestDto[] availableQuests;
         public QuestDto[] activeQuests;
         public QuestDto[] completedQuests;
+
+        // ── [NEW] 인벤토리 ──
+        public InventoryItemDto[] inventory;
     }
 
     // ====================================================
@@ -153,18 +164,17 @@ public static class SaveSystem
         var data = new SaveData
         {
             day                  = state.day,
-            gold                 = state.gold,
-            stress               = state.stress,
-            fatigue              = state.fatigue,
-            fighterSlotProgress  = state.fighterSlotProgress,
-            playerActionsUsed    = state.playerActionsUsed,
-            playerLocation       = (int)state.playerLocation,
+            gold                 = state.player.gold,
+            stress               = state.fighter.stress,
+            fatigue              = state.fighter.fatigue,
+            fighterSlotProgress  = state.fighter.slotProgress,
+            playerActionsUsed    = state.player.actionsUsed,
+            playerLocation       = (int)state.player.location,
             nightChoice          = (int)state.nightChoice,
             nightCompleted       = state.nightCompleted,
 
-            // [NEW]
             facilityUpgradeLevel = state.facilityUpgradeLevel,
-            dailyRerollUsed     = state.dailyRerollUsed,
+            dailyRerollUsed     = QuestManager.Instance != null ? QuestManager.Instance.IsRerollUsed : false,
             trainingEfficiency   = state.trainingEfficiency,
             explorationGoldTotal = state.explorationGoldTotal,
             explorationFoundKeys = state.explorationFoundKeys.ToArray()
@@ -176,8 +186,8 @@ public static class SaveSystem
         {
             data.fighterSchedule[i] = new FighterSlotDto
             {
-                type        = (int)state.fighterSchedule[i].type,
-                trainingStat = (int)state.fighterSchedule[i].trainingStat
+                type        = (int)state.fighter.schedule[i].type,
+                trainingStat = (int)state.fighter.schedule[i].trainingStat
             };
         }
 
@@ -187,14 +197,14 @@ public static class SaveSystem
         {
             data.yesterdaySchedule[i] = new FighterSlotDto
             {
-                type        = (int)state.yesterdaySchedule[i].type,
-                trainingStat = (int)state.yesterdaySchedule[i].trainingStat
+                type        = (int)state.fighter.yesterdaySchedule[i].type,
+                trainingStat = (int)state.fighter.yesterdaySchedule[i].trainingStat
             };
         }
 
         // 훈련 스탯
         var statList = new List<StatDto>();
-        foreach (var kv in state.stats)
+        foreach (var kv in state.fighter.stats)
             statList.Add(new StatDto { enumValue = (int)kv.Key, amount = kv.Value });
         data.stats = statList.ToArray();
 
@@ -252,6 +262,12 @@ public static class SaveSystem
         data.activeQuests    = SerializeQuests(state.quests.activeQuests);
         data.completedQuests = SerializeQuests(state.quests.completedQuests);
 
+        // [NEW] 인벤토리
+        var invList = new List<InventoryItemDto>();
+        foreach (var item in state.inventory.items)
+            invList.Add(new InventoryItemDto { itemId = item.itemDataId, count = item.count });
+        data.inventory = invList.ToArray();
+
         PlayerPrefs.SetString(Key, JsonUtility.ToJson(data));
         PlayerPrefs.Save();
     }
@@ -267,18 +283,18 @@ public static class SaveSystem
 
         // 기본
         state.day               = data.day;
-        state.gold              = data.gold;
-        state.stress            = data.stress;
-        state.fatigue           = data.fatigue;
-        state.fighterSlotProgress = data.fighterSlotProgress;
-        state.playerActionsUsed = data.playerActionsUsed;
-        state.playerLocation    = (MapLocation)data.playerLocation;
+        state.player.gold       = data.gold;
+        state.fighter.stress    = data.stress;
+        state.fighter.fatigue   = data.fatigue;
+        state.fighter.slotProgress = data.fighterSlotProgress;
+        state.player.actionsUsed = data.playerActionsUsed;
+        state.player.location    = (MapLocation)data.playerLocation;
         state.nightChoice       = (NightActionType)data.nightChoice;
         state.nightCompleted    = data.nightCompleted;
 
         // [NEW]
         state.facilityUpgradeLevel = data.facilityUpgradeLevel;
-        state.dailyRerollUsed     = data.dailyRerollUsed;
+        if (QuestManager.Instance != null) QuestManager.Instance.SetRerollUsed(data.dailyRerollUsed);
         state.trainingEfficiency   = data.trainingEfficiency;
         state.explorationGoldTotal = data.explorationGoldTotal;
         state.explorationFoundKeys = new List<string>(data.explorationFoundKeys ?? new string[0]);
@@ -288,8 +304,8 @@ public static class SaveSystem
         {
             for (int i = 0; i < data.fighterSchedule.Length && i < GameState.DaySlotCount; i++)
             {
-                state.fighterSchedule[i].type         = (FighterSlotType)data.fighterSchedule[i].type;
-                state.fighterSchedule[i].trainingStat = (TrainingStat)data.fighterSchedule[i].trainingStat;
+                state.fighter.schedule[i].type         = (FighterSlotType)data.fighterSchedule[i].type;
+                state.fighter.schedule[i].trainingStat = (TrainingStat)data.fighterSchedule[i].trainingStat;
             }
         }
 
@@ -298,8 +314,8 @@ public static class SaveSystem
         {
             for (int i = 0; i < data.yesterdaySchedule.Length && i < GameState.DaySlotCount; i++)
             {
-                state.yesterdaySchedule[i].type         = (FighterSlotType)data.yesterdaySchedule[i].type;
-                state.yesterdaySchedule[i].trainingStat = (TrainingStat)data.yesterdaySchedule[i].trainingStat;
+                state.fighter.yesterdaySchedule[i].type         = (FighterSlotType)data.yesterdaySchedule[i].type;
+                state.fighter.yesterdaySchedule[i].trainingStat = (TrainingStat)data.yesterdaySchedule[i].trainingStat;
             }
         }
 
@@ -307,7 +323,7 @@ public static class SaveSystem
         if (data.stats != null)
         {
             foreach (var s in data.stats)
-                state.stats[(TrainingStat)s.enumValue] = s.amount;
+                state.fighter.stats[(TrainingStat)s.enumValue] = s.amount;
         }
 
         // 숙련도
@@ -370,11 +386,15 @@ public static class SaveSystem
         }
 
         // 퀘스트
-        if (data.availableQuests != null || data.activeQuests != null)
-        {
-            state.quests.availableQuests = DeserializeQuests(data.availableQuests);
-            state.quests.activeQuests    = DeserializeQuests(data.activeQuests);
             state.quests.completedQuests = DeserializeQuests(data.completedQuests);
+        }
+ 
+        // [NEW] 인벤토리 복원
+        if (data.inventory != null)
+        {
+            state.inventory.items.Clear();
+            foreach (var dto in data.inventory)
+                state.inventory.items.Add(new InventoryItem(dto.itemId, dto.count));
         }
     }
 

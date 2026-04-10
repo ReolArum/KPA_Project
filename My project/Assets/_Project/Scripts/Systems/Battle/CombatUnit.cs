@@ -89,8 +89,8 @@ public class CombatUnit
         var unit      = new CombatUnit();
         unit.unitName = "내 클론";
 
-        // combatData(장비 포함) 통해 스탯 계산
-        unit.rawStats = state.combatData.CalculateCombatStats(state);
+        // [MOD] CombatStatProcessor를 통해 스탯 계산
+        unit.rawStats = CombatStatProcessor.CalculateStats(state, state.combatData);
 
         // 장비 참조 복사
         foreach (EquipSlot slot in System.Enum.GetValues(typeof(EquipSlot)))

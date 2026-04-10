@@ -147,9 +147,9 @@ public class PlayerCombatData
     {
         if (_cachedGameState == null) return 0;
 
-        // 훈련 스탯 → 전투 스탯 변환
-        CombatBaseStats combatStats = CalculateCombatStats(_cachedGameState);
-        return combatStats.Get(stat);
+        // [MOD] 계산 로직을 CombatStatProcessor로 위임
+        CombatBaseStats stats = CombatStatProcessor.CalculateStats(_cachedGameState, this);
+        return stats.Get(stat);
     }
 
     // ========================================
@@ -168,54 +168,7 @@ public class PlayerCombatData
         }
     }
 
-    // ========================================
-    //  전투용 스탯 계산 (훈련 스탯 + 장비)
-    // ========================================
-    public CombatBaseStats CalculateCombatStats(GameState gameState)
-    {
-        // 1. 훈련 스탯 → 전투 스탯 변환 (Dictionary 전달)
-        CombatBaseStats stats = CombatBaseStats.FromTrainingStats(gameState.stats);
-
-        // 2. 장비 스탯 적용
-        foreach (var kvp in equippedGear)
-        {
-            if (kvp.Value != null)
-                kvp.Value.ApplyTo(stats);
-        }
-
-        return stats;
-    }
-
-
-    // ========================================
-    //  유파 보너스 총합 계산
-    // ========================================
-    public SchoolBonus CalculateTotalSchoolBonus(SchoolDatabase schoolDB)
-    {
-        SchoolBonus total = new SchoolBonus();
-
-        if (schoolDB == null) return total;
-
-        // 모든 유파의 레벨 보너스를 합산
-        foreach (var kvp in schoolLevels)
-        {
-            if (kvp.Value <= 0) continue; // 레벨 0이면 스킵
-
-            var schoolData = schoolDB.GetSchool(kvp.Key);
-            if (schoolData == null) continue;
-
-            var bonus = schoolData.GetCumulativeBonus(kvp.Value);
-            total.Add(bonus);
-        }
-
-        // 장비 특수 보너스도 합산
-        foreach (var kvp in equippedGear)
-        {
-            if (kvp.Value != null && kvp.Value.specialBonus != null)
-                total.Add(kvp.Value.specialBonus);
-        }
-
-        return total;
-    }
+    // 훈련 스탯 + 장비 합산 및 유파 보너스 계산 로직은 
+    // CombatStatProcessor.cs 로 이관되었습니다.
 
 }

@@ -3,11 +3,11 @@ using UnityEngine;
 /// <summary>
 /// 탐사 이벤트 노드 마커.
 /// 씬의 이벤트 오브젝트(함정, 상호작용, 탈출구 등)에 부착합니다.
-/// nodeId를 ExplorationStageData의 ExplorationNodeData.nodeId와 동일하게 설정하면,
-/// 런타임에 이 오브젝트의 위치가 해당 노드의 좌표로 자동 반영됩니다.
+/// nodeId를 ExplorationStageData의 DialogueNodeData.nodeId와 동일하게 설정하면,
+/// 해당 노드의 월드 좌표를 이 마커의 위치로 덮어씌웁니다.
 /// </summary>
 public class ExplorationNodeMarker : MonoBehaviour {
-    [Tooltip("ExplorationStageData의 nodeId와 정확히 일치해야 합니다.")]
+    [Tooltip("ExplorationStageData의 nodes 중 일치하는 nodeId")]
     public string nodeId;
 
     [Header("씬 뷰 미리보기 (Gizmo)")]

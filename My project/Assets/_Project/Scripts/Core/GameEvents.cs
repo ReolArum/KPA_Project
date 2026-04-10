@@ -28,11 +28,14 @@ public static class GameEvents
     public static event Action<ExplorationState> OnExplorationUpdated;
     public static void RaiseExplorationUpdated(ExplorationState s) => OnExplorationUpdated?.Invoke(s);
 
-    public static event Action<ExplorationNodeData, List<ExplorationChoiceData>> OnExplorationEventTriggered;
-    public static void RaiseExplorationEventTriggered(ExplorationNodeData n, List<ExplorationChoiceData> c) => OnExplorationEventTriggered?.Invoke(n, c);
+    // ===== [NEW] 탐사 이벤트 로직 =====
+    public static event Action<DialogueNodeData, List<DialogueChoiceData>> OnExplorationEventTriggered;
+    public static void RaiseExplorationEventTriggered(DialogueNodeData node, List<DialogueChoiceData> choices) => 
+        OnExplorationEventTriggered?.Invoke(node, choices);
 
-    public static event Action<ExplorationPhase> OnExplorationPhaseChanged;
-    public static void RaiseExplorationPhaseChanged(ExplorationPhase p) => OnExplorationPhaseChanged?.Invoke(p);
+    public static event Action<DialogueChoiceData> OnExplorationChoiceSelected;
+    public static void RaiseExplorationChoiceSelected(DialogueChoiceData choice) => 
+        OnExplorationChoiceSelected?.Invoke(choice);
 
     public static event System.Action<string> OnExplorationEnvObjectFound;
     public static void RaiseExplorationEnvObjectFound(string objId) => OnExplorationEnvObjectFound?.Invoke(objId);

@@ -12,8 +12,13 @@ public class ExplorationManager : MonoBehaviour
 
     [Header("Settings")]
     public float moveSpeed = 5f;
-    public float timeScale = 1.0f; // 시간 소모 배율
-    public KeyCode interactKey = KeyCode.E; // [ADD] 상호작용 키
+    public float timeScale = 1.0f; 
+    // [OPTIMIZE] interactKey 제거 (Input System 사용)
+
+    [Header("Character Setup")]
+    public Fighter fighterPrefab; 
+    public Fighter CurrentFighter { get; private set; } // [MOD] 외부에서 접근 가능하게 변경
+    private Transform playerTransform;
 
     [Header("Current Session")]
     public ExplorationStageData stageData;
@@ -23,7 +28,6 @@ public class ExplorationManager : MonoBehaviour
     public LayerMask groundLayer;
     public LayerMask obstacleLayer;
     public float drawThreshold = 0.5f; // 점 사이의 최소 거리
-    public Transform playerTransform;  // [ADD] 실제 캐릭터 모델 트랜스폼
 
 #if ENABLE_INPUT_SYSTEM
     [Header("Input System")]
@@ -34,6 +38,7 @@ public class ExplorationManager : MonoBehaviour
     private InputAction interactAction;
 #endif
 
+    private NavMeshAgent agent; // [ADD] 물리 기반 이동을 위한 에이전트
     private Coroutine movementCoroutine;
     private bool isDrawing = false;
     private Vector3 lastAddedPoint;
@@ -115,7 +120,41 @@ public class ExplorationManager : MonoBehaviour
     }
 #endif
 
-    private ExplorationNodeData nearInteractionNode;
+    private DialogueNodeData nearInteractionNode;
+    public void TriggerEvent(DialogueNodeData node)
+    {
+        if (node.eventType == ExplorationEventType.None) return;
+        
+        SetPhase(ExplorationPhase.EventProcessing);
+
+        // [MOD] 모든 이벤트는 VN UI를 통해 보여짐 (범용 DialogueStep 사용)
+        List<DialogueStep> steps = node.vnSequence;
+
+        // 대화 데이터가 아예 없는 경우, 기본 안내용 대화 1단계 생성
+        if (steps == null || steps.Count == 0)
+        {
+            steps = new List<DialogueStep>
+            {
+                new DialogueStep 
+                { 
+                    characterName = "시스템", 
+                    dialogueText = $"{node.nodeName ?? node.nodeId}에 도착했습니다." 
+                }
+            };
+        }
+
+        GameEvents.RaiseExplorationVNStarted(steps, () => {
+            // VN 종료 혹은 수집 완료 후 선택지 처리 로직
+            if (node.eventType == ExplorationEventType.EnvObject && node.choices.Count == 0)
+            {
+                if (!currentState.foundEnvObjectIds.Contains(node.nodeId))
+                {
+                    currentState.foundEnvObjectIds.Add(node.nodeId);
+                    GameEvents.RaiseExplorationEnvObjectFound(node.nodeName ?? node.nodeId);
+                }
+            }
+        });
+    }
     private string lastTriggeredNodeId; // [ADD] 현재 혹은 방금 상호작용한 노드 ID 수집용
 
     void Update()
@@ -148,27 +187,26 @@ public class ExplorationManager : MonoBehaviour
             // [FIX] 이전 지점에서 현재 클릭 지점까지 NavMesh 최단 경로 계산
             Vector3 startPoint = GetLastPathPoint();
             
-            // 거리가 너무 가깝지 않다면 경로 계산
-            if (Vector3.Distance(startPoint, hitPos) > 0.1f)
-            {
-                var navPath = CalculateNavMeshPath(startPoint, hitPos);
-                
-                // [ADD] 경로 추가 전 남은 시간 체크
-                float pathTime = CalculatePathTime(navPath, startPoint);
-                if (currentState.predictedTime + pathTime <= currentState.remainingTime)
+                // [OPTIMIZE] sqrMagnitude 사용으로 거리 체크 최적화
+                float distSqr = (startPoint - hitPos).sqrMagnitude;
+                if (distSqr > 0.01f) // 0.1m의 제곱
                 {
-                    newSegment.AddRange(navPath);
-                    currentState.pathSegments.Add(newSegment);
-                    lastAddedPoint = hitPos;
-                    UpdatePredictedTime();
-                    GameEvents.RaiseExplorationUpdated(currentState);
+                    var navPath = CalculateNavMeshPath(startPoint, hitPos);
+                    float pathTime = CalculatePathTime(navPath, startPoint);
+                    if (currentState.predictedTime + pathTime <= currentState.remainingTime)
+                    {
+                        newSegment.AddRange(navPath);
+                        currentState.pathSegments.Add(newSegment);
+                        lastAddedPoint = hitPos;
+                        UpdatePredictedTime();
+                        GameEvents.RaiseExplorationUpdated(currentState);
+                    }
+                    else
+                    {
+                        isDrawing = false;
+                        Debug.Log("Cannot start path: Exceeds remaining time!");
+                    }
                 }
-                else
-                {
-                    isDrawing = false;
-                    Debug.Log("Cannot start path: Exceeds remaining time!");
-                }
-            }
             else
             {
                 newSegment.Add(hitPos);
@@ -205,27 +243,27 @@ public class ExplorationManager : MonoBehaviour
                 return;
             }
 
-            // 일정 거리 이상 움직였을 때만 점 추가
-            if (Vector3.Distance(lastAddedPoint, hitPos) > drawThreshold)
+            // [OPTIMIZE] sqrMagnitude 사용으로 드로잉 거리 체크 최적화
+            float distSqr = (lastAddedPoint - hitPos).sqrMagnitude;
+            float thresholdSqr = drawThreshold * drawThreshold;
+
+            if (distSqr > thresholdSqr)
             {
                 if (currentState.pathSegments.Count > 0)
                 {
-                    // [ADD] 남은 시간 내에서만 그릴 수 있도록 제한
-                    float addedDist = Vector3.Distance(lastAddedPoint, hitPos);
+                    float addedDist = Mathf.Sqrt(distSqr); // 시간 계산에는 실제 거리 필요
                     float addedTime = addedDist / moveSpeed;
 
                     if (currentState.predictedTime + addedTime <= currentState.remainingTime)
                     {
                         currentState.pathSegments[currentState.pathSegments.Count - 1].Add(hitPos);
                         lastAddedPoint = hitPos;
-                        UpdatePredictedTime(); // 예상 시간 갱신
+                        UpdatePredictedTime(); 
                         GameEvents.RaiseExplorationUpdated(currentState);
                     }
                     else
                     {
-                        // 시간을 초과하면 그리기 중단 (시각적 피드백은 UI에서 처리)
                         isDrawing = false;
-                        Debug.Log("Cannot draw more: Out of time!");
                     }
                 }
             }
@@ -341,9 +379,34 @@ public class ExplorationManager : MonoBehaviour
         
         SyncVisualPosition();
         
-        GameEvents.RaiseActionResult($"탐사 시작: {data.stageName}");
+        // 1. 캐릭터 스폰 로직 추가
+        SpawnFighter(spawnPos);
+        
         GameEvents.RaiseExplorationStarted(data, currentState); // [ADD] UI 시작 이벤트
         SetPhase(ExplorationPhase.Planning);
+    }
+
+    private void SpawnFighter(Vector3 position)
+    {
+        if (fighterPrefab == null)
+        {
+            Debug.LogError("Fighter Prefab is not assigned in ExplorationManager!");
+            return;
+        }
+
+        if (CurrentFighter != null) Destroy(CurrentFighter.gameObject);
+
+        CurrentFighter = Instantiate(fighterPrefab, position, Quaternion.identity);
+        playerTransform = CurrentFighter.transform;
+
+        // NavMeshAgent 설정 확인 및 강제 활성화
+        var agent = currentFighter.GetComponent<NavMeshAgent>();
+        if (agent != null)
+        {
+            agent.speed = moveSpeed;
+            agent.acceleration = 20f;
+            agent.stoppingDistance = 0.1f;
+        }
     }
 
     /// <summary>
@@ -424,6 +487,10 @@ public class ExplorationManager : MonoBehaviour
             currentState.plannedPath.AddRange(segment);
         }
 
+        // [FIX] 확정된 경로는 plannedPath로 넘어갔으므로 드래그 세그먼트는 비움
+        // 이렇게 해야 다음 드로잉 시 이전 경로가 섞이지 않음
+        currentState.pathSegments.Clear();
+
         SetPhase(ExplorationPhase.Moving);
         if (movementCoroutine != null) StopCoroutine(movementCoroutine);
         movementCoroutine = StartCoroutine(MovementRoutine());
@@ -435,24 +502,40 @@ public class ExplorationManager : MonoBehaviour
 
     private IEnumerator MovementRoutine()
     {
+        if (agent == null)
+        {
+            Debug.LogError("NavMeshAgent not found on player!");
+            yield break;
+        }
+
         while (currentState.plannedPath.Count > 0)
         {
             Vector3 target = currentState.plannedPath[0];
-            
-            while (Vector3.Distance(currentState.currentPosition, target) > 0.1f)
+            agent.SetDestination(target);
+            agent.isStopped = false;
+
+            // 목적지에 도달할 때까지 대기
+            while (agent.pathPending || agent.remainingDistance > agent.stoppingDistance)
             {
-                // 이벤트 처리 중이면 이동/시간소모 일시정지 (이벤트 종료까지 대기)
+                // 이벤트 처리 중이면 이동/시간소모 일시정지
                 if (currentState.phase != ExplorationPhase.Moving)
                 {
+                    agent.isStopped = true;
                     yield return new WaitUntil(() => currentState.phase == ExplorationPhase.Moving || currentState.phase == ExplorationPhase.Result);
-                    if (currentState.phase == ExplorationPhase.Result) yield break;
+                    if (currentState.phase == ExplorationPhase.Result) 
+                    {
+                        agent.isStopped = true;
+                        yield break;
+                    }
+                    agent.isStopped = false;
+                    agent.SetDestination(target); // 목적지 재설정 (혹시 몰라서)
                 }
 
-                float step = moveSpeed * Time.deltaTime;
-                currentState.currentPosition = Vector3.MoveTowards(currentState.currentPosition, target, step);
-                
-                // 시간 소모
+                // 이동 시 시간 소모 (Agent의 실시간 속도 반영 가능하지만 여기선 단순화)
                 ConsumeTime(Time.deltaTime * timeScale);
+                
+                // 현재 위치 갱신 (에이전트가 이동시킨 좌표 반영)
+                currentState.currentPosition = playerTransform.position;
                 GameEvents.RaiseExplorationUpdated(currentState);
 
                 // [FIX] 비주얼 동기화 및 조건부 노드 스캔 (최적화)
@@ -460,6 +543,7 @@ public class ExplorationManager : MonoBehaviour
 
                 if (currentState.remainingTime <= 0)
                 {
+                    agent.isStopped = true;
                     OnExplorationFailed("시간 초과!");
                     yield break;
                 }
@@ -471,22 +555,30 @@ public class ExplorationManager : MonoBehaviour
             currentState.plannedPath.RemoveAt(0);
         }
 
+        agent.isStopped = true;
+
         // 모든 경로 점을 소모한 후
         if (currentState.phase != ExplorationPhase.Result)
         {
+            // [FIX] 이동 종료 시 잔여 드래그 데이터가 남아있지 않도록 정리
+            currentState.pathSegments.Clear();
             SetPhase(ExplorationPhase.Planning);
         }
     }
 
     private void SyncVisualPosition()
     {
+        // [MOD] 이제 NavMeshAgent가 위치를 직접 제어하므로,
+        // playerTransform -> currentState.currentPosition 방향으로 좌표를 역동기화합니다.
         if (playerTransform != null)
         {
-            playerTransform.position = currentState.currentPosition;
+            currentState.currentPosition = playerTransform.position;
         }
 
         // [OPTIMIZE] 마지막 스캔 위치로부터 일정 거리(0.2m) 이상 이동했을 때만 노드 스캔 수행
-        if (Vector3.Distance(lastScanPosition, currentState.currentPosition) > 0.2f)
+        // [OPTIMIZE] 마지막 스캔 위치로부터 일정 거리(0.2m) 이상 이동했을 때만 노드 스캔 수행
+        float scanThresholdSqr = 0.2f * 0.2f;
+        if ((lastScanPosition - currentState.currentPosition).sqrMagnitude > scanThresholdSqr)
         {
             lastScanPosition = currentState.currentPosition;
             ScanNearbyNodes();
@@ -504,6 +596,12 @@ public class ExplorationManager : MonoBehaviour
 
             Vector3 nodePos = GetNodePosition(node);
             float distSqr = (currentState.currentPosition - nodePos).sqrMagnitude;
+            
+            // [ADD] 진입 조건(Requirements) 체크: 미충족 시 무반응 통과
+            if (!ExplorationEventProcessor.Instance.CheckRequirementsExternal(node.requirements))
+            {
+                continue;
+            }
             
             float interactionRangeSqr = node.interactionRange * node.interactionRange;
             float envObjectRangeSqr = node.envObjectRange * node.envObjectRange;
@@ -527,9 +625,20 @@ public class ExplorationManager : MonoBehaviour
                 
                 if (inEnvObject)
                 {
-                    currentState.foundEnvObjectIds.Add(node.nodeId);
-                    GameEvents.RaiseExplorationEnvObjectFound(node.nodeName ?? node.nodeId);
-                    Debug.Log($"[Exploration] 환경 오브젝트 수집: {node.nodeName ?? node.nodeId}");
+                    // [MOD] 환경 오브젝트 예외 처리: VN 데이터가 있을 때만 연출 발생
+                    if (node.vnSequence != null && node.vnSequence.Count > 0)
+                    {
+                        Debug.Log($"[Exploration] 환경 오브젝트 발견 (연출 포함): {node.nodeId}");
+                        TriggerEvent(node);
+                        return; // 이동 일시 정지
+                    }
+                    else
+                    {
+                        // VN 데이터가 없으면 기존처럼 자동 수집
+                        currentState.foundEnvObjectIds.Add(node.nodeId);
+                        GameEvents.RaiseExplorationEnvObjectFound(node.nodeName ?? node.nodeId);
+                        Debug.Log($"[Exploration] 환경 오브젝트 자동 수집: {node.nodeId}");
+                    }
                 }
                 else
                 {
@@ -562,18 +671,34 @@ public class ExplorationManager : MonoBehaviour
         
         SetPhase(ExplorationPhase.EventProcessing);
 
-        // [New] VN 컷씬 연출이 먼저 있다면 실행
-        if (node.vnSequence != null && node.vnSequence.Count > 0)
+        // [MOD] 모든 이벤트는 VN UI를 통해 보여짐 (이미지 시안 기반 통합 레이아웃)
+        List<VNDialogueStep> steps = node.vnSequence;
+
+        // 대화 데이터가 아예 없는 경우, 기본 안내용 대화 1단계 생성
+        if (steps == null || steps.Count == 0)
         {
-            GameEvents.RaiseExplorationVNStarted(node.vnSequence, () => {
-                // VN 종료 후 선택지 팝업
-                ExplorationEventProcessor.Instance.ProcessEvent(node);
-            });
+            steps = new List<VNDialogueStep>
+            {
+                new VNDialogueStep 
+                { 
+                    characterName = "시스템", 
+                    dialogueText = $"{node.nodeName ?? node.nodeId}에 도착했습니다." 
+                }
+            };
         }
-        else
-        {
-            ExplorationEventProcessor.Instance.ProcessEvent(node);
-        }
+
+        GameEvents.RaiseExplorationVNStarted(steps, () => {
+            // VN 종료 혹은 수집 완료 후 선택지 처리 로직은 UIController에서 handle함
+            // 여기서는 EnvObject 자동 수집 로직(선택지 없는 경우) 처리
+            if (node.eventType == ExplorationEventType.EnvObject && node.choices.Count == 0)
+            {
+                if (!currentState.foundEnvObjectIds.Contains(node.nodeId))
+                {
+                    currentState.foundEnvObjectIds.Add(node.nodeId);
+                    GameEvents.RaiseExplorationEnvObjectFound(node.nodeName ?? node.nodeId);
+                }
+            }
+        });
     }
 
     public void ResumeMovement(bool shouldRedraw = false)

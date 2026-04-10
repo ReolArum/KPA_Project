@@ -16,11 +16,22 @@ public class GameManager : MonoBehaviour
     public GamePhase  Phase { get; private set; } = GamePhase.Title;
 
     // ===== 설정 상수 =====
-    private const int BaseTrainAmount = 10;
-    private const int TrainFatigue = 15;
-    private const int TrainStress = 10;
-    private const int RestFatigueRecovery = 20;
-    private const int RestStressRecovery = 15;
+    // 설정 상수는 이제 TrainingManager에서 관리합니다.
+
+    private void Start()
+    {
+        // [REFRESH-ONLY] 아키텍처 리팩토링을 위해 최초 1회 세이브 초기화 제안
+        // 테스트 완료 후 아래 라인은 삭제 권장
+        // SaveSystem.Clear(); 
+
+        RefreshUI();
+    }
+
+    public void ToggleCharacterUI()
+    {
+        if (CharacterUnifiedUI.Instance != null)
+            CharacterUnifiedUI.Instance.Toggle();
+    }
 
     void Awake()
     {
@@ -48,13 +59,7 @@ public class GameManager : MonoBehaviour
         }
 
         // 일반 초기화
-        for (int i = 0; i < GameState.DaySlotCount; i++)
-        {
-            State.fighterSchedule[i].type         = FighterSlotType.Rest;
-            State.fighterSchedule[i].trainingStat = TrainingStat.Strength;
-        }
-
-        State.quests.GenerateDailyQuests(State.day);
+        if (QuestManager.Instance != null) QuestManager.Instance.GenerateDailyQuests(State.day);
         SaveSystem.Load(State);
         SetPhase(GamePhase.Title);
     }
@@ -69,7 +74,7 @@ public class GameManager : MonoBehaviour
     // ====================================================
     //  Title
     // ====================================================
-    public void OnClickStart() => SetPhase(GamePhase.ScheduleSetting);
+    public void OnClickStart() => SetPhase(GamePhase.MorningSchedule);
 
     // ====================================================
     //  Schedule Setting
@@ -88,23 +93,24 @@ public class GameManager : MonoBehaviour
     public void OnClickMapLocation(int locationIndex)
     {
         if (Phase != GamePhase.DayMap) return;
-        if (State.IsDayOver) return;
+        
+        // [MOD] DayTimeManager를 통한 시간 소모 체크
+        if (DayTimeManager.Instance.RemainingSlots <= 0) return;
 
         MapLocation target = (MapLocation)locationIndex;
 
         if (target == State.playerLocation)
         {
-            // 행동권이 남아있을 때만 같은 장소 행동 패널로 진입
-            if (State.IsDayOver) return;
             SetPhase(GamePhase.DayPlaceAction);
             return;
         }
 
         State.playerLocation = target;
-        State.playerActionsUsed++;
-        ExecuteFighterSlot();
+        DayTimeManager.Instance.ConsumeSlot(1); // [MOD] 슬롯 1개 소모
+        
+        // 전투체 슬롯 진행 (특정 조건에 따라 자동 진행)
+        // ExecuteFighterSlot(); 
 
-        // [변경] 행동권 소진 시에도 일단 장소 UI로 진입하여 마지막 행동을 보장함
         SetPhase(GamePhase.DayPlaceAction);
     }
 
@@ -113,7 +119,7 @@ public class GameManager : MonoBehaviour
         if (Phase != GamePhase.DayPlaceAction) return;
 
         // [변경] 지도 복귀 시도 시 행동권이 없으면 즉시 밤으로 전환
-        if (State.IsDayOver)
+        if (DayTimeManager.Instance.RemainingSlots <= 0)
         {
             TransitionToNight();
             return;
@@ -142,8 +148,8 @@ public class GameManager : MonoBehaviour
         switch (action)
         {
             case PlaceActionType.Talk:
-                State.endingVars.Modify(EndingVar.Sync, 2);
-                State.stress = Mathf.Max(0, State.stress - 1);
+                GrowthManager.Instance.ModifyEndingVar(EndingVar.Sync, 2);
+                State.fighter.stress = Mathf.Max(0, State.fighter.stress - 1);
                 GameEvents.RaiseActionResult("대화 완료. 동기화 +2");
                 break;
 
@@ -152,13 +158,10 @@ public class GameManager : MonoBehaviour
                 break;
 
             case PlaceActionType.DeliverQuest:
-                var completed = State.quests.CheckDelivery(State.playerLocation);
+                var completed = QuestManager.Instance.CheckDelivery(State.playerLocation);
                 if (completed != null)
                 {
-                    State.gold += completed.goldReward;
-                    State.todayGoldEarned += completed.goldReward;
-                    State.quests.CompleteQuest(completed);
-                    GameEvents.RaiseActionResult($"의뢰 보상 수령! (+{completed.goldReward}G)");
+                    QuestManager.Instance.CompleteQuest(completed);
                 }
                 else GameEvents.RaiseActionResult("배달할 의뢰가 없습니다.");
                 break;
@@ -201,10 +204,10 @@ public class GameManager : MonoBehaviour
                 break;
 
             case PlaceActionType.SupportTraining:
-                var currSlot = State.fighterSchedule[State.fighterSlotProgress];
+                var currSlot = State.fighter.schedule[State.fighter.slotProgress];
                 if (currSlot.type == FighterSlotType.Training)
                 {
-                    State.stress += 2;
+                    State.fighter.stress += 2;
                     State.AddStat(currSlot.trainingStat, 2);
                     GameEvents.RaiseActionResult($"훈련 보조 수행! ({GetCurrentStatName(currSlot.trainingStat)} +2)");
                 }
@@ -223,9 +226,9 @@ public class GameManager : MonoBehaviour
                 break;
 
             case PlaceActionType.RerollQuests:
-                if (!State.dailyRerollUsed)
+                if (QuestManager.Instance != null && !QuestManager.Instance.IsRerollUsed)
                 {
-                    State.dailyRerollUsed = true;
+                    QuestManager.Instance.SetRerollUsed(true);
                     State.quests.GenerateDailyQuests(State.day);
                     GameEvents.RaiseActionResult("의뢰 게시판 리롤 완료!");
                 }
@@ -237,58 +240,44 @@ public class GameManager : MonoBehaviour
     // ====================================================
     //  Schedule Actions
     // ====================================================
-    public void SetScheduleSlot(int index, FighterSlotType type, TrainingStat stat)
+    public void SetFighterSchedule(int index, FighterSlotType type, TrainingStat stat)
     {
-        if (index < 0 || index >= State.fighterSchedule.Length) return;
-        State.fighterSchedule[index].type = type;
-        State.fighterSchedule[index].trainingStat = stat;
-        GameEvents.RaiseGameStateChanged(State);
+        if (index < 0 || index >= State.fighter.schedule.Length) return;
+        State.fighter.schedule[index].type = type;
+        State.fighter.schedule[index].trainingStat = stat;
+        MainGameUIController.Instance.RefreshUI(State);
     }
 
-    public void OnClickApplyYesterdaySchedule()
+    public void CopyYesterdaySchedule()
     {
-        for (int i = 0; i < State.fighterSchedule.Length; i++)
+        for (int i = 0; i < State.fighter.schedule.Length; i++)
         {
-            State.fighterSchedule[i].type = State.yesterdaySchedule[i].type;
-            State.fighterSchedule[i].trainingStat = State.yesterdaySchedule[i].trainingStat;
+            State.fighter.schedule[i].type = State.fighter.yesterdaySchedule[i].type;
+            State.fighter.schedule[i].trainingStat = State.fighter.yesterdaySchedule[i].trainingStat;
         }
-
-        GameEvents.RaiseActionResult("어제와 동일한 스케줄을 적용했습니다.");
-        GameEvents.RaiseGameStateChanged(State);
+        MainGameUIController.Instance.RefreshUI(State);
     }
 
-    public void OnClickResetSchedule()
+    public void ResetFighterSchedule()
     {
-        for (int i = 0; i < State.fighterSchedule.Length; i++)
+        for (int i = 0; i < State.fighter.schedule.Length; i++)
         {
-            State.fighterSchedule[i].type = FighterSlotType.Rest;
-            State.fighterSchedule[i].trainingStat = TrainingStat.Strength; // None 대신 Strength로 기본 설정
+            State.fighter.schedule[i].type = FighterSlotType.Rest;
+            State.fighter.schedule[i].trainingStat = TrainingStat.Strength; // None 대신 Strength로 기본 설정
         }
-        GameEvents.RaiseActionResult("스케줄을 초기화했습니다.");
-        GameEvents.RaiseGameStateChanged(State);
+        MainGameUIController.Instance.RefreshUI(State);
     }
 
     public string GetTotalPredictedOutcome()
     {
-        int tStr = 0, tAgi = 0, tDex = 0, tEnd = 0, tFat = 0, tStrss = 0;
-        foreach (var s in State.fighterSchedule)
-        {
-            if (s.type == FighterSlotType.Training)
-            {
-                int val = Mathf.RoundToInt((BaseTrainAmount + State.facilityUpgradeLevel) * State.trainingEfficiency);
-                if (s.trainingStat == TrainingStat.Strength) tStr += val;
-                else if (s.trainingStat == TrainingStat.Agility) tAgi += val;
-                else if (s.trainingStat == TrainingStat.Dexterity) tDex += val;
-                else if (s.trainingStat == TrainingStat.Endurance) tEnd += val;
-                tFat += TrainFatigue; tStrss += TrainStress;
-            }
-            else if (s.type == FighterSlotType.Rest)
-            {
-                tFat -= RestFatigueRecovery; tStrss -= RestStressRecovery;
-            }
-        }
-        tFat = Mathf.Max(-State.fatigue, tFat);
-        return $"[일간 예상 수치]\n힘: +{tStr}, 민: +{tAgi}, 기: +{tDex}, 체: +{tEnd}\n피로: {(tFat >= 0 ? "+" : "")}{tFat}, 스트레스: {(tStrss >= 0 ? "+" : "")}{tStrss}";
+        if (TrainingManager.Instance == null) return "매니저를 찾을 수 없습니다.";
+        
+        return TrainingManager.Instance.GetPredictedOutcome(
+            State.fighter.schedule, 
+            State.facilityUpgradeLevel, 
+            State.trainingEfficiency, 
+            State.fighter.fatigue
+        );
     }
 
     // ====================================================
@@ -296,47 +285,15 @@ public class GameManager : MonoBehaviour
     // ====================================================
     void ExecuteFighterSlot()
     {
-        if (State.fighterSlotProgress >= GameState.DaySlotCount) return;
+        if (State.fighter.slotProgress >= GameState.DaySlotCount) return;
 
-        FighterSlot slot      = State.fighterSchedule[State.fighterSlotProgress];
-        var         profTrain = State.GetProf(ProficiencyType.Training);
-        var         profPart  = State.GetProf(ProficiencyType.PartTime);
-
-        switch (slot.type)
+        FighterSlot slot = State.fighter.schedule[State.fighter.slotProgress];
+        
+        if (TrainingManager.Instance != null)
         {
-            case FighterSlotType.Training:
-                int amount = BaseTrainAmount + State.facilityUpgradeLevel; // 시설 레벨당 +1
-                amount = Mathf.RoundToInt(amount * State.trainingEfficiency); // 음식 효율 곱셈
-
-                State.AddStat(slot.trainingStat, amount);
-                State.fatigue += TrainFatigue;
-                State.stress  += TrainStress;
-                State.todayTrainingCount++;
-                
-                var pTrain = State.GetProf(ProficiencyType.Training);
-                if (pTrain.AddExp(amount)) GameEvents.RaiseProficiencyLevelUp(ProficiencyType.Training, pTrain.level);
-
-                GameEvents.RaiseFighterSlotResult($"전투체: 훈련({GetCurrentStatName(slot.trainingStat)}) 완료 (+{amount})");
-                break;
-
-            case FighterSlotType.PartTime:
-                bool big    = Random.value < (0.1f + profPart.PartTimeBigSuccessBonus);
-                int  reward = big ? 20 : 10;
-                State.gold           += reward;
-                State.todayGoldEarned += reward;
-                State.fatigue        += 1;
-                profPart.AddExp(2);
-                GameEvents.RaiseFighterSlotResult($"전투체: 알바 {(big ? "대성공" : "완료")} (+{reward}G)");
-                break;
-
-            case FighterSlotType.Rest:
-                State.fatigue = Mathf.Max(0, State.fatigue - RestFatigueRecovery);
-                State.stress  = Mathf.Max(0, State.stress  - RestStressRecovery);
-                GameEvents.RaiseFighterSlotResult($"전투체: 휴식 (피로 -{RestFatigueRecovery}, 스트레스 -{RestStressRecovery})");
-                break;
+            TrainingManager.Instance.ExecuteSlot(slot);
+            State.fighter.slotProgress++;
         }
-
-        State.fighterSlotProgress++;
     }
 
     // ====================================================
@@ -344,11 +301,11 @@ public class GameManager : MonoBehaviour
     // ====================================================
     void TransitionToNight()
     {
-        while (State.fighterSlotProgress < GameState.DaySlotCount)
-            ExecuteFighterSlot();
+        // [MOD] 남은 스케줄 모두 실행 전 조기 종료 보너스 등이 적용된 결과 처리
+        FighterScheduleManager.Instance.ProcessResults();
 
         State.nightCompleted = false;
-        SetPhase(GamePhase.NightChoice);
+        SetPhase(GamePhase.NightAction);
     }
 
     public void OnClickNightChoice(int choiceIndex)
@@ -440,72 +397,12 @@ public class GameManager : MonoBehaviour
     {
         State.lastBattleReport = report.ToReportString();
 
-        ArenaBattleResult arenaResult;
-
-        if (State.IsPromotionDay)
-        {
-            if (report.playerWon)
-            {
-                State.arena.promotionWins++;
-                ArenaRank oldRank = State.arena.currentRank;
-                if (State.arena.currentRank < ArenaRank.Champion)
-                    State.arena.currentRank++;
-
-                arenaResult = new ArenaBattleResult
-                {
-                    won              = true,
-                    goldReward       = 80,
-                    reputationChange = 10,
-                    isPromotion      = true,
-                    oldRank          = oldRank,
-                    newRank          = State.arena.currentRank,
-                    message          = $"승급전 승리! {oldRank} → {State.arena.currentRank}"
-                };
-            }
-            else
-            {
-                State.arena.promotionLosses++;
-                arenaResult = new ArenaBattleResult
-                {
-                    won              = false,
-                    goldReward       = 10,
-                    reputationChange = -3,
-                    isPromotion      = true,
-                    oldRank          = State.arena.currentRank,
-                    newRank          = State.arena.currentRank,
-                    message          = "승급전 패배... 다음 기회를 노리세요."
-                };
-            }
-        }
-        else
-        {
-            if (report.playerWon)
-            {
-                State.arena.wins++;
-                arenaResult = new ArenaBattleResult
-                {
-                    won              = true,
-                    goldReward       = 20,
-                    reputationChange = 3,
-                    message          = "아레나 승리!"
-                };
-            }
-            else
-            {
-                State.arena.losses++;
-                arenaResult = new ArenaBattleResult
-                {
-                    won              = false,
-                    goldReward       = 5,
-                    reputationChange = -1,
-                    message          = "아레나 패배..."
-                };
-            }
-        }
-
-        State.gold            += arenaResult.goldReward;
-        State.todayGoldEarned += arenaResult.goldReward;
-        State.endingVars.Modify(EndingVar.Reputation, arenaResult.reputationChange);
+        // [MOD] 아레나 판정 로직을 ArenaManager로 이관
+        var arenaResult = ArenaManager.Instance.ProcessMatchResult(
+            report.playerWon, 
+            State.IsPromotionDay ? 80 : 20, // 기본 보상
+            State.IsPromotionDay ? 10 : 3    // 기본 명성
+        );
 
         GameEvents.RaiseBattleResult(arenaResult);
         State.nightCompleted = true;
@@ -519,7 +416,7 @@ public class GameManager : MonoBehaviour
     {
         if (Phase != GamePhase.DaySummary) return;
         State.ResetForNewDay();
-        State.quests.GenerateDailyQuests(State.day);
+        if (QuestManager.Instance != null) QuestManager.Instance.GenerateDailyQuests(State.day);
         SaveSystem.Save(State);
         SetPhase(GamePhase.ScheduleSetting);
     }

@@ -33,6 +33,27 @@ public class PlaceActionUIController : MonoBehaviour
     {
         foreach (var t in themes)
             themeDict[t.location] = t;
+            
+        btnTalk.onClick.AddListener(OnTalkClicked);
+    }
+
+    private void OnTalkClicked()
+    {
+        // 1. 현재 장소 테마 데이터 룩업
+        MapLocation loc = GameManager.Instance.State.player.location;
+        if (!themeDict.ContainsKey(loc)) return;
+
+        var theme = themeDict[loc];
+        
+        // 2. 테마에 설정된 대화 노드가 있다면 범용 DialogueManager를 통해 VN 대화창 호출
+        if (theme.talkNode != null)
+        {
+            DialogueManager.Instance.StartDialogue(theme.talkNode);
+        }
+        else
+        {
+            GameEvents.RaiseActionResult($"{theme.locationName}의 담당자와 대화를 나눕니다. (지정된 대화 노드 없음)");
+        }
     }
 
     public void Refresh(GameState state)
@@ -63,7 +84,7 @@ public class PlaceActionUIController : MonoBehaviour
         if (loc == MapLocation.TrainingGround)
         {
             // 훈련 보조는 전투체가 실제 훈련 중일 때만 노출
-            bool isTraining = state.fighterSchedule[state.fighterSlotProgress].type == FighterSlotType.Training;
+            bool isTraining = state.fighter.schedule[state.fighter.slotProgress].type == FighterSlotType.Training;
             btnSupport.gameObject.SetActive(isTraining);
             btnUpgrade.gameObject.SetActive(true);
         }

@@ -2,33 +2,37 @@
 public enum GamePhase
 {
     Title,
-    ScheduleSetting,
-    DayMap,
-    DayPlaceAction,
-    NightChoice,
-    NightAction,
-    DaySummary,
-    BattlePreparation,
-    Battle
+    MorningSchedule, // [NEW] 아침 스케줄 설정
+    DayMap,          // [NEW] 낮 지도 활동
+    NightTransition, // [NEW] 밤 전환 (거점 이동)
+    NightAction,     // [NEW] 밤 메인 행동 (탐사/아레나)
+    LateNightReport  // [NEW] 심야 정산 및 리포트
 }
 
 // ===== 전투체 낮 스케줄 =====
 public enum FighterSlotType
 {
     Training,
-    PartTime,
+    Work,
     Rest
 }
+
+// ===== 세부 행동 분류 =====
+public enum ScheduleWorkType { Courier, Garden, Restaurant }
+public enum ScheduleRestType { Vacation, CityTour, Picnic }
+public enum ScheduleTrainingType { BasicPhysical, Skill, SimulationBattle }
 
 // ===== 플레이어 지도 장소 =====
 public enum MapLocation
 {
-    None = -1,   // 미선택 상태 (지도 복귀 시 기준점)
-    Home,
-    Shop,
-    TrainingGround,
-    Cafe,
-    QuestBoard
+    None = -1,
+    Base,           // 거점
+    GeneralStore,   // 잡화점
+    EquipmentShop,  // 장비상점
+    Agency,         // 흥신소
+    JunkYard,       // 폐기물처리장
+    Cafe,           // 카페
+    HardwareStore   // 만물상
 }
 
 // ===== 장소 내 행동 =====
@@ -55,13 +59,15 @@ public enum NightActionType
     Rest
 }
 
-// ===== 훈련 세부 스탯 =====
+// ===== 훈련 세부 스탯 (6대 스탯) =====
 public enum TrainingStat
 {
-    Strength,
-    Agility,
-    Dexterity,
-    Endurance,
+    Strength,     // STR (힘)
+    Agility,      // AGI (민첩)
+    Vitality,     // VIT (내구)
+    Intelligence, // INT (지능)
+    Guts,         // GUT (근성)
+    Sensitivity,  // SEN (감각)
     None = -1
 }
 
@@ -82,13 +88,10 @@ public enum ExplorationEventType
 
 public enum ExplorationChoiceType
 {
-    StatCheck,     // 스탯 기반
-    ItemUse,       // 아이템 사용
-    EnvObjectUse,  // 발견한 환경 오브젝트 사용
-    Bypass,        // 우회 (시간 소모)
-    BruteForce,    // 강행 (위험 감수)
-    Cancel,         // 물러나기
-    Exit            // [ADD] 탐사 탈출 (정산으로 이동)
+    Interact,   // 상호작용 (스탯 체크, 일반 조사 등)
+    Combat,     // 전투 (적 조우 시 선택권 소모)
+    Escape,     // 회피/후퇴
+    Exit        // 탐사 탈출 성공
 }
 
 public enum ExplorationPhase
@@ -128,4 +131,12 @@ public enum EquipmentGrade
     Rare,       // 희귀
     Epic,       // 영웅
     Legendary   // 전설
+}
+
+public enum ItemCategory
+{
+    Consumable, // 소모품 (회복)
+    Gift,       // 선물 (호감도)
+    Info,       // 정보 (탐사)
+    Part        // 부품 (시설)
 }

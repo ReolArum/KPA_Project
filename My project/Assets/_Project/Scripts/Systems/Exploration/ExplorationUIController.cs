@@ -9,15 +9,15 @@ public class ExplorationUIController : MonoBehaviour
     [SerializeField] private TMP_Text textTime;
     [SerializeField] private TMP_Text textChoices;
     [SerializeField] private TMP_Text textGold;
-    [SerializeField] private TMP_Text textPredictedTime; // [ADD] 예상 시간 텍스트
-    [SerializeField] private TMP_Text textActionResult;  // [ADD] 행동 결과 알림 텍스트
-    [SerializeField] private Button btnConfirmPath; // [ADD] 경로 확정 버튼
+    [SerializeField] private TMP_Text textPredictedTime; 
+    [SerializeField] private TMP_Text textActionResult;  
+    [SerializeField] private Button btnConfirmPath; 
 
-    [Header("Event Popup")]
+    [Header("Event Popup (Legacy)")]
     [SerializeField] private GameObject panelEvent;
     [SerializeField] private TMP_Text textEventTitle;
     [SerializeField] private TMP_Text textEventDesc;
-    [SerializeField] private float actionResultDuration = 2.5f; // [ADD] 알림 지속 시간
+    [SerializeField] private float actionResultDuration = 2.5f; 
     [SerializeField] private Transform choiceButtonRoot;
     [SerializeField] private Button choiceButtonPrefab;
 
@@ -32,12 +32,12 @@ public class ExplorationUIController : MonoBehaviour
     [SerializeField] private Camera camQuarter;
     [SerializeField] private float camTransitionDuration = 1.0f;
 
-    [Header("Path Visuals (Prototype)")]
+    [Header("Path Visuals")]
     [SerializeField] private LineRenderer pathRenderer;
 
     [Header("Node Visualization")]
-    [SerializeField] private Image nodeIconPrefab; // [ADD] 노드 아이콘 프리팹 (UI용)
-    [SerializeField] private Transform nodeContainer;  // [ADD] 아이콘들이 담길 부모 오브젝트
+    [SerializeField] private Image nodeIconPrefab; 
+    [SerializeField] private Transform nodeContainer;  
     [SerializeField] private Color interactiveHighlightColor = Color.yellow;
 
     [Header("Visual Novel (VN) Mode")]
@@ -47,22 +47,23 @@ public class ExplorationUIController : MonoBehaviour
     [SerializeField] private Image       imgVNLeft;
     [SerializeField] private Image       imgVNRight;
     [SerializeField] private Image       imgVNBackground;
-    [SerializeField] private Button      btnVNDialogueBox; // [ADD] 대화 상자 클릭 버튼
-    private List<VNDialogueStep> currentVNSteps;
-    private int                  currentVNIndex;
-    private System.Action        onVNComplete;
+    [SerializeField] private Button      btnVNDialogueBox; 
+    
+    private List<DialogueStep>  currentVNSteps;
+    private int                 currentVNIndex;
+    private System.Action       onVNComplete;
+    private DialogueNodeData    curEventNode; 
+    private List<DialogueChoiceData> curChoices;
 
     [Header("Interaction & Environment Objects")]
     [SerializeField] private GameObject panelInteractPrompt;
     [SerializeField] private TMP_Text   textInteractPrompt;
     [SerializeField] private GameObject panelEnvObjectList;
     [SerializeField] private Transform  envObjectListContent;
-    [SerializeField] private GameObject envObjectItemPrefab; // [ADD] 환경 오브젝트 항목 프리팹
+    [SerializeField] private GameObject envObjectItemPrefab;
     [SerializeField] private Button     btnToggleEnvObjectList;
     
-    // [ADD] 최적화용 캐시: 노드 아이디별 강조용 렌더러 리스트
     private Dictionary<string, List<Renderer>> nodeRendererCache = new Dictionary<string, List<Renderer>>();
-
 
     void OnEnable()
     {
@@ -73,7 +74,7 @@ public class ExplorationUIController : MonoBehaviour
         GameEvents.OnExplorationEnvObjectFound += HandleEnvObjectFound;
         GameEvents.OnExplorationVNStarted += HandleVNStarted;
         GameEvents.OnExplorationInteractionPrompt += HandleInteractionPrompt;
-        GameEvents.OnActionResult += HandleActionResult; // [ADD] 결과 알림 구독
+        GameEvents.OnActionResult += HandleActionResult; 
     }
 
     void OnDisable()
@@ -105,7 +106,6 @@ public class ExplorationUIController : MonoBehaviour
             });
         }
 
-        // [ADD] 환경 오브젝트 목록 토글 리스너
         if (btnToggleEnvObjectList && panelEnvObjectList)
         {
             btnToggleEnvObjectList.onClick.AddListener(() => panelEnvObjectList.SetActive(!panelEnvObjectList.activeSelf));
@@ -114,24 +114,8 @@ public class ExplorationUIController : MonoBehaviour
         if (panelResult) panelResult.SetActive(false);
         if (panelEnvObjectList) panelEnvObjectList.SetActive(false);
 
-        // 초기 카메라 설정 (회의록 지침: FOV 26, 각도 45/135)
-        if (camTop)
-        {
-            camTop.fieldOfView = 26f;
-            camTop.transform.rotation = Quaternion.Euler(45f, 45f, 0f); // Top-down 느낌의 45도
-            camTop.enabled = true;
-        }
-        if (camQuarter)
-        {
-            camQuarter.fieldOfView = 26f;
-            camQuarter.transform.rotation = Quaternion.Euler(45f, 135f, 0f); // Quarter-view 느낌의 135도
-            camQuarter.enabled = false;
-        }
-    }
-
-    void Update()
-    {
-        // 최적화: 매 프레임 UI 작업을 수행하지 않음 (이벤트 기반으로 대체)
+        if (camTop) camTop.enabled = true;
+        if (camQuarter) camQuarter.enabled = false;
     }
 
     private void HandleExplorationUpdated(ExplorationState state)
@@ -159,17 +143,14 @@ public class ExplorationUIController : MonoBehaviour
 
         if (textPredictedTime)
         {
-            // 계획 단계에서만 예상 시간을 보여주거나 강조
             int pMin = (int)state.predictedTime / 60;
             int pSec = (int)state.predictedTime % 60;
             textPredictedTime.text = $"예상: {pMin:00}:{pSec:00}";
-            
-            // Planning 페이즈가 아닐 때는 숨기거나 흐릿하게 처리 가능
             textPredictedTime.gameObject.SetActive(state.phase == ExplorationPhase.Planning);
         }
     }
 
-    private void HandleVNStarted(List<VNDialogueStep> steps, System.Action onComplete)
+    private void HandleVNStarted(List<DialogueStep> steps, System.Action onComplete)
     {
         currentVNSteps = steps;
         currentVNIndex = 0;
@@ -194,7 +175,6 @@ public class ExplorationUIController : MonoBehaviour
         if (textVNName) textVNName.text = step.characterName;
         if (textVNDialogue) textVNDialogue.text = step.dialogueText;
         
-        // [FIX] 단계 전환 시 이전 스프라이트 잔상 방지
         if (imgVNLeft) 
         {
             imgVNLeft.sprite = step.leftSprite;
@@ -211,18 +191,60 @@ public class ExplorationUIController : MonoBehaviour
         }
     }
 
-    public void OnVNClick() // 버튼이나 Update에서 호출
+    public void OnVNClick() 
     {
         currentVNIndex++;
         if (currentVNIndex >= currentVNSteps.Count)
         {
-            panelVN.SetActive(false);
-            onVNComplete?.Invoke();
+            bool hasChoices = curEventNode != null && curEventNode.choices.Count > 0;
+
+            if (hasChoices)
+            {
+                ProcessAndShowChoices();
+            }
+            else
+            {
+                panelVN.SetActive(false);
+                onVNComplete?.Invoke();
+                curEventNode = null;
+            }
         }
         else
         {
             ShowVNStep(currentVNIndex);
         }
+    }
+
+    private void ProcessAndShowChoices()
+    {
+        if (curEventNode == null || ExplorationEventProcessor.Instance == null) return;
+
+        curChoices = ExplorationEventProcessor.Instance.FilterChoices(curEventNode.choices);
+        
+        foreach (Transform child in choiceButtonRoot)
+            Destroy(child.gameObject);
+
+        foreach (var choice in curChoices)
+        {
+            var btn = Instantiate(choiceButtonPrefab, choiceButtonRoot);
+            btn.GetComponentInChildren<TMP_Text>().text = $"{choice.label}";
+            
+            btn.onClick.AddListener(() => {
+                ExplorationEventProcessor.Instance.ApplyChoiceEffect(choice);
+                panelVN.SetActive(false); 
+                onVNComplete?.Invoke();
+                curEventNode = null;
+            });
+        }
+        
+        if (btnVNDialogueBox != null) btnVNDialogueBox.interactable = false;
+    }
+
+    private void HandleEventTriggered(DialogueNodeData node, List<DialogueChoiceData> visibleChoices)
+    {
+        curEventNode = node;
+        curChoices = visibleChoices;
+        if (btnVNDialogueBox != null) btnVNDialogueBox.interactable = true;
     }
 
     private void HandleInteractionPrompt(string prompt, bool show)
@@ -232,7 +254,6 @@ public class ExplorationUIController : MonoBehaviour
             panelInteractPrompt.SetActive(show);
             if (show && textInteractPrompt)
             {
-                // 현재 매핑된 키를 가져와서 표시 (기본 E)
                 string keyName = ExplorationManager.Instance != null ? ExplorationManager.Instance.interactKey.ToString() : "E";
                 textInteractPrompt.text = $"[{keyName}] {prompt}";
             }
@@ -243,7 +264,6 @@ public class ExplorationUIController : MonoBehaviour
     private void HandleActionResult(string msg)
     {
         if (textActionResult == null) return;
-        
         if (actionResultCoroutine != null) StopCoroutine(actionResultCoroutine);
         actionResultCoroutine = StartCoroutine(ShowActionResultRoutine(msg));
     }
@@ -252,20 +272,14 @@ public class ExplorationUIController : MonoBehaviour
     {
         textActionResult.text = msg;
         textActionResult.gameObject.SetActive(true);
-        
-        // 단순하게 일정 시간 대기 후 숨김 (추후 CanvasGroup Alpha 조절로 페이드 가능)
         yield return new WaitForSeconds(actionResultDuration);
-        
         textActionResult.gameObject.SetActive(false);
         actionResultCoroutine = null;
     }
 
     private void HandleEnvObjectFound(string objId)
     {
-        // 알림 표시
         GameEvents.RaiseActionResult($"환경 오브젝트 발견: {objId}");
-        
-        // 목록 갱신
         RefreshEnvObjectList();
     }
 
@@ -273,11 +287,9 @@ public class ExplorationUIController : MonoBehaviour
     {
         if (envObjectListContent == null || envObjectItemPrefab == null) return;
 
-        // 기존 항목 제거
         foreach (Transform child in envObjectListContent)
             Destroy(child.gameObject);
 
-        // 현재 획득한 환경 오브젝트들 생성
         var foundIds = ExplorationManager.Instance.currentState.foundEnvObjectIds;
         foreach (var id in foundIds)
         {
@@ -290,16 +302,9 @@ public class ExplorationUIController : MonoBehaviour
     private void UpdatePathVisuals(ExplorationState state)
     {
         if (pathRenderer == null) return;
-
-        // [FIX] LineRenderer가 세계 좌표를 기준으로 그려지도록 설정
         pathRenderer.useWorldSpace = true;
 
         List<Vector3> allPoints = new List<Vector3>();
-
-        // [FIX] 캐릭터의 실시간 위치(state.currentPosition)를 추가하던 로직 제거
-        // 그려진 경로 데이터(pathSegments)만 사용하여 선을 바닥에 고정
-
-        // 모든 세그먼트를 순서대로 합쳐서 시각화
         foreach (var segment in state.pathSegments)
         {
             allPoints.AddRange(segment);
@@ -313,21 +318,18 @@ public class ExplorationUIController : MonoBehaviour
     {
         if (panelResult) panelResult.SetActive(false);
         UpdateHUD(state);
-        SpawnNodeIcons(data); // [ADD] 노드 아이콘 생성
-        CacheNodeRenderers(data); // [ADD] 렌더러 미리 캐싱 (최적화)
-        HighlightInStageObjects(data); // [ADD] 3D 오브젝트 강조
+        SpawnNodeIcons(data); 
+        CacheNodeRenderers(data); 
+        HighlightInStageObjects(data); 
     }
 
-    /// <summary>
-    /// 스테이지 시작 시 각 노드 주변의 렌더러를 미리 찾아 캐싱합니다. (매번 OverlapSphere를 돌리지 않음)
-    /// </summary>
     private void CacheNodeRenderers(ExplorationStageData data)
     {
         nodeRendererCache.Clear();
         foreach (var node in data.nodes)
         {
             List<Renderer> renderers = new List<Renderer>();
-            Collider[] cols = Physics.OverlapSphere(node.worldPosition, 1.2f); // 범위 소폭 상향
+            Collider[] cols = Physics.OverlapSphere(node.worldPosition, 1.2f); 
             foreach (var col in cols)
             {
                 var rend = col.GetComponent<Renderer>();
@@ -356,7 +358,6 @@ public class ExplorationUIController : MonoBehaviour
     {
         if (nodeIconPrefab == null || nodeContainer == null) return;
 
-        // 기존 아이콘 제거
         foreach (Transform child in nodeContainer)
             Destroy(child.gameObject);
 
@@ -366,12 +367,8 @@ public class ExplorationUIController : MonoBehaviour
         foreach (var node in data.nodes)
         {
             var icon = Instantiate(nodeIconPrefab, nodeContainer);
-            
-            // [FIX] 월드 좌표를 스크린 좌표로 변환 후 UI 요소에 배치
-            // 아이콘의 Anchor와 Pivot이 (0.5, 0.5)일 때 가장 정확합니다.
             Vector3 screenPos = cam.WorldToScreenPoint(node.worldPosition);
             
-            // Z가 0보다 작으면 카메라 뒤에 있는 것이므로 숨김 처리
             if (screenPos.z < 0) 
             {
                 icon.gameObject.SetActive(false);
@@ -381,38 +378,11 @@ public class ExplorationUIController : MonoBehaviour
                 icon.transform.position = screenPos;
             }
             
-            // 툴팁이나 이름을 아이콘에 표시
             var label = icon.GetComponentInChildren<TMP_Text>();
             if (label != null) label.text = node.nodeName ?? node.nodeId;
             
-            // 이벤트 타입에 따라 색상 변경
             icon.color = node.eventType == ExplorationEventType.Exit ? Color.green : Color.white;
         }
-    }
-
-    private void HandleEventTriggered(ExplorationNodeData node, List<ExplorationChoiceData> visibleChoices)
-    {
-        if (panelEvent == null) return;
-
-        textEventTitle.text = node.eventType.ToString();
-        textEventDesc.text = $"[위험 조우] {node.nodeId}에 도착했습니다. 어떻게 하시겠습니까?";
-
-        // 기존 버튼 제거
-        foreach (Transform child in choiceButtonRoot)
-            Destroy(child.gameObject);
-
-        // 새 버튼 생성
-        foreach (var choice in visibleChoices)
-        {
-            var btn = Instantiate(choiceButtonPrefab, choiceButtonRoot);
-            btn.GetComponentInChildren<TMP_Text>().text = $"{choice.label} ({choice.timePenalty}s)";
-            btn.onClick.AddListener(() => {
-                ExplorationEventProcessor.Instance.ApplyChoiceEffect(choice);
-                panelEvent.SetActive(false);
-            });
-        }
-
-        panelEvent.SetActive(true);
     }
 
     private void HandlePhaseChanged(ExplorationPhase phase)
@@ -420,11 +390,11 @@ public class ExplorationUIController : MonoBehaviour
         if (phase == ExplorationPhase.Planning)
         {
             if (btnConfirmPath) btnConfirmPath.gameObject.SetActive(true);
-            StartCoroutine(TransitionCamera(true)); // Top View
+            StartCoroutine(TransitionCamera(true)); 
         }
         else if (phase == ExplorationPhase.Moving)
         {
-            StartCoroutine(TransitionCamera(false)); // Quarter View
+            StartCoroutine(TransitionCamera(false)); 
         }
         else if (phase == ExplorationPhase.Result)
         {
@@ -435,36 +405,9 @@ public class ExplorationUIController : MonoBehaviour
     private System.Collections.IEnumerator TransitionCamera(bool toTop)
     {
         if (!camTop || !camQuarter) yield break;
-
-        Camera from = toTop ? camQuarter : camTop;
-        Camera to = toTop ? camTop : camQuarter;
-
-        // "전환 시작" 시 두 카메라의 파라미터를 보간하기 위해 
-        // 하나의 메인 카메라 시점을 옮기는 방식이 아닌, 두 카메라의 활성화를 제어함.
-        // 부드러운 전환을 위해 'to' 카메라의 상태를 'from' 카메라의 현재 상태에서 시작하게 함 (혹은 전용 블렌딩 카메라 사용)
-        
-        // 여기서는 간단하게 toTop 여부에 따라 카메라 활성화 전환만 우선 수행하고,
-        // 실제 줌/회전 느낌을 주기 위해 FOV나 거리를 조절하는 연출을 추가할 수 있습니다.
-        
-        float elapsed = 0;
-        Vector3 startPos = from.transform.position;
-        Quaternion startRot = from.transform.rotation;
-        float startFOV = from.fieldOfView;
-
-        // [연출용] 실제 한 카메라를 부드럽게 옮기는 로직 (메인 카메라가 camTop 혹은 camQuarter를 따라감)
-        while (elapsed < camTransitionDuration)
-        {
-            elapsed += Time.deltaTime;
-            float t = Mathf.Clamp01(elapsed / camTransitionDuration);
-            
-            // [Future Improvement] 렌더 텍스처나 시네머신 혼합이 없을 경우, 
-            // 여기에서 메인 카메라의 FOV나 위치를 보간하여 시각적 연속성을 줄 수 있습니다.
-            
-            yield return null;
-        }
-
         camTop.enabled = toTop;
         camQuarter.enabled = !toTop;
+        yield return null;
     }
 
     private void ShowResult(ExplorationState state)
@@ -472,8 +415,23 @@ public class ExplorationUIController : MonoBehaviour
         if (panelResult == null) return;
 
         bool success = state.remainingTime > 0;
-        textResultStatus.text = success ? "탐사 성공!" : "탐사 실패 (시간 초과)";
-        textResultSummary.text = $"획득 골드: {state.collectedGold}G\n발견한 환경 오브젝트: {state.foundEnvObjectIds.Count}개";
+        textResultStatus.text = success ? "<color=green>탐사 성공!</color>" : "<color=red>탐사 실패</color>";
+        
+        int min = (int)state.remainingTime / 60;
+        int sec = (int)state.remainingTime % 60;
+        string timeStr = success ? $"\n남은 시간: {min:00}:{sec:00}" : "";
+
+        textResultSummary.text = $"획득 골드: {state.collectedGold}G{timeStr}\n\n[수집한 항목]";
+        
+        if (state.foundEnvObjectIds.Count > 0)
+        {
+            foreach (var id in state.foundEnvObjectIds)
+                textResultSummary.text += $"\n- {id}";
+        }
+        else
+        {
+            textResultSummary.text += "\n없음";
+        }
         
         panelResult.SetActive(true);
     }
