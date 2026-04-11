@@ -56,6 +56,14 @@ public class ExplorationEventProcessor : MonoBehaviour
         return filtered;
     }
 
+    public bool CheckRequirementsExternal(List<DialogueRequirement> reqs)
+    {
+        GameState state = (GameManager.Instance != null) ? GameManager.Instance.State : new GameState();
+        var expManager = ExplorationManager.Instance;
+        if (expManager == null) return true;
+        return CheckRequirements(reqs, state, expManager.currentState);
+    }
+
     private bool CheckRequirements(List<DialogueRequirement> reqs, GameState state, ExplorationState expState)
     {
         if (reqs == null || reqs.Count == 0) return true;
@@ -68,7 +76,7 @@ public class ExplorationEventProcessor : MonoBehaviour
                     if (state.GetStat(req.statType) < req.minValue) return false;
                     break;
                 case DialogueRequirement.RequirementType.HasItem:
-                    // TODO: state.inventory.HasItem(req.targetId)
+                    if (!state.inventory.HasItem(req.targetId, (int)req.minValue)) return false;
                     break;
                 case DialogueRequirement.RequirementType.HasEnvObject:
                     if (!expState.foundEnvObjectIds.Contains(req.targetId)) return false;

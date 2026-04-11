@@ -60,6 +60,20 @@ public class Inventory
         }
     }
 
+    public bool HasItem(string itemId, int count = 1)
+    {
+        int total = 0;
+        foreach (var item in items)
+        {
+            if (item.itemDataId == itemId)
+            {
+                total += item.count;
+                if (total >= count) return true;
+            }
+        }
+        return false;
+    }
+
     /// <summary>
     /// 특정 카테고리의 아이템들만 필터링하여 반환
     /// </summary>

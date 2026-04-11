@@ -88,8 +88,8 @@ public class QuestManager : MonoBehaviour
     {
         var state = GameManager.Instance.State;
         
-        state.player.gold += quest.goldReward;
-        state.player.reputation += quest.repReward;
+        state.AddGold(quest.goldReward);
+        state.AddReputation(quest.repReward);
 
         quest.isCompleted = true;
         state.quests.activeQuests.Remove(quest);

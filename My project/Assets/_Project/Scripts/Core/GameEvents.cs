@@ -40,11 +40,14 @@ public static class GameEvents
     public static event System.Action<string> OnExplorationEnvObjectFound;
     public static void RaiseExplorationEnvObjectFound(string objId) => OnExplorationEnvObjectFound?.Invoke(objId);
 
-    public static event Action<List<VNDialogueStep>, Action> OnExplorationVNStarted;
-    public static void RaiseExplorationVNStarted(List<VNDialogueStep> steps, Action onComplete) => OnExplorationVNStarted?.Invoke(steps, onComplete);
+    public static event Action<List<DialogueStep>, Action> OnExplorationVNStarted;
+    public static void RaiseExplorationVNStarted(List<DialogueStep> steps, Action onComplete) => OnExplorationVNStarted?.Invoke(steps, onComplete);
 
     public static event Action<string, bool> OnExplorationInteractionPrompt;
     public static void RaiseExplorationInteractionPrompt(string prompt, bool show) => OnExplorationInteractionPrompt?.Invoke(prompt, show);
+
+    public static event Action<ExplorationPhase> OnExplorationPhaseChanged;
+    public static void RaiseExplorationPhaseChanged(ExplorationPhase phase) => OnExplorationPhaseChanged?.Invoke(phase);
 
     // ── 알림 및 메시지 ──
     //  행동 결과 메시지

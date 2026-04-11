@@ -61,8 +61,8 @@ public class ArenaManager : MonoBehaviour
         result.newRank = arena.currentRank;
         
         // 실제 보상 적용
-        state.player.gold += result.goldReward;
-        state.player.reputation += result.reputationChange;
+        state.AddGold(result.goldReward);
+        state.AddReputation(result.reputationChange);
 
         SaveSystem.Save(state);
         return result;

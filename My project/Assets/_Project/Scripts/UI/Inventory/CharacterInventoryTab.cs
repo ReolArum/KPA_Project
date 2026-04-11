@@ -49,7 +49,7 @@ public class CharacterInventoryTab : MonoBehaviour
         for (int i = 0; i < _slots.Count; i++)
         {
             if (i < displayItems.Count)
-                _slots[i].SetItem(displayItems[i], null); // TODO: ItemData 룩업 함수 연결
+                _slots[i].SetItem(displayItems[i], ItemDatabaseManager.Instance.GetItem);
             else
                 _slots[i].Clear();
         }

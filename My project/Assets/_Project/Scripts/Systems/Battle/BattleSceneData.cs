@@ -3,9 +3,9 @@ using UnityEngine;
 
 public static class BattleSceneData
 {
-    // 씬 이름 상수 (GameManager.SceneBattle/SceneMain과 동일하게 유지)
-    public const string SceneMain   = "Main";
-    public const string SceneBattle = "BattleScene";
+    // 씬 이름 상수 (Scene_[Name] 컨벤션 적용)
+    public const string SceneMain   = "Scene_MainGame";
+    public const string SceneBattle = "Scene_Battle";
 
     // 메인 씬 → 전투 씬으로 넘길 데이터
     public static GameState gameState;
@@ -23,7 +23,7 @@ public static class BattleSceneData
     {
         gameState = state;
         playerUnit = CombatUnit.CreateFromGameState(state);
-        opponentUnit = CombatUnit.CreateOpponent(state.arena.currentRank, state.day);
+        opponentUnit = CombatUnit.CreateOpponent(state.arena.currentRank, state.player.day);
         battleReport = null;
         battleCompleted = false;
     }

@@ -41,7 +41,7 @@ public class BattleUIController : MonoBehaviour
     private void OnReturnToMainClicked()
     {
         // 메인 씬으로 복귀 (BattleSceneData.CompleteBattle 이후 호출됨)
-        UnityEngine.SceneManagement.SceneManager.LoadScene("Main");
+        UnityEngine.SceneManagement.SceneManager.LoadScene("Scene_MainGame");
     }
 
     public void UpdatePlayerHP(float current, float max)

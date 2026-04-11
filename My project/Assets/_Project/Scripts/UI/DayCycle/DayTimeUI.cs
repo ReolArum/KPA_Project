@@ -4,23 +4,23 @@ using TMPro;
 public class DayTimeUI : MonoBehaviour
 {
     [SerializeField] private TextMeshProUGUI _timeText;
-    [SerializeField] private string _format = "남은 이동 기회: {0} / 8";
+    [SerializeField] private string _format = "남은 이동 기회: {0} / 4";
 
-    private void Start()
+    private void OnEnable()
     {
-        if (DayTimeManager.Instance != null)
-        {
-            DayTimeManager.Instance.OnDayTimeUpdated += UpdateDisplay;
-            UpdateDisplay(DayTimeManager.Instance.RemainingSlots);
-        }
+        GameEvents.OnRefreshRequested += HandleRefresh;
+        if (GameManager.Instance != null && GameManager.Instance.State != null)
+            UpdateDisplay(GameManager.Instance.State.RemainingActions);
     }
 
-    private void OnDestroy()
+    private void OnDisable()
     {
-        if (DayTimeManager.Instance != null)
-        {
-            DayTimeManager.Instance.OnDayTimeUpdated -= UpdateDisplay;
-        }
+        GameEvents.OnRefreshRequested -= HandleRefresh;
+    }
+
+    private void HandleRefresh(GameState state, GamePhase phase)
+    {
+        UpdateDisplay(state.RemainingActions);
     }
 
     private void UpdateDisplay(int remainingSlots)

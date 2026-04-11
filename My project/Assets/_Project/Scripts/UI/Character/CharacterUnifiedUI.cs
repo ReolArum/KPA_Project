@@ -12,6 +12,10 @@ public class CharacterUnifiedUI : MonoBehaviour
     [SerializeField] private Button btnTabStatus;
     [SerializeField] private Button btnTabInventory;
 
+    [Header("Content Tabs")]
+    [SerializeField] private CharacterStatusTab statusTab;
+    [SerializeField] private CharacterInventoryTab inventoryTab;
+
     [Header("Window Control")]
     [SerializeField] private GameObject windowRoot;
     [SerializeField] private Button btnClose;
@@ -58,13 +62,11 @@ public class CharacterUnifiedUI : MonoBehaviour
 
     private void RefreshStatus()
     {
-        // TODO: FighterData 수치 연동
-        Debug.Log("Refreshing Status UI...");
+        if (statusTab != null) statusTab.Refresh(GameManager.Instance.State.fighter);
     }
 
     private void RefreshInventory()
     {
-        // TODO: Inventory 목록 연동
-        Debug.Log("Refreshing Inventory UI...");
+        if (inventoryTab != null) inventoryTab.Refresh(GameManager.Instance.State.inventory);
     }
 }

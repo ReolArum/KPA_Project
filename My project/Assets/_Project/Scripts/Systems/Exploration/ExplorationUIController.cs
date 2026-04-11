@@ -30,7 +30,6 @@ public class ExplorationUIController : MonoBehaviour
     [Header("Cameras")]
     [SerializeField] private Camera camTop;
     [SerializeField] private Camera camQuarter;
-    [SerializeField] private float camTransitionDuration = 1.0f;
 
     [Header("Path Visuals")]
     [SerializeField] private LineRenderer pathRenderer;

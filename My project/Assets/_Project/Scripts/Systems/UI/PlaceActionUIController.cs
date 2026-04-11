@@ -35,6 +35,16 @@ public class PlaceActionUIController : MonoBehaviour
             themeDict[t.location] = t;
             
         btnTalk.onClick.AddListener(OnTalkClicked);
+        btnBuy.onClick.AddListener(() => GameManager.Instance.OnClickPlaceAction((int)PlaceActionType.BuyItem));
+        btnSell.onClick.AddListener(() => GameManager.Instance.OnClickPlaceAction((int)PlaceActionType.SellItem));
+        btnRest.onClick.AddListener(() => GameManager.Instance.OnClickPlaceAction((int)PlaceActionType.Rest));
+        btnUpgrade.onClick.AddListener(() => GameManager.Instance.OnClickPlaceAction((int)PlaceActionType.UpgradeFacility));
+        btnSupport.onClick.AddListener(() => GameManager.Instance.OnClickPlaceAction((int)PlaceActionType.SupportTraining));
+        btnFood.onClick.AddListener(() => GameManager.Instance.OnClickPlaceAction((int)PlaceActionType.BuyFood));
+        btnReroll.onClick.AddListener(() => GameManager.Instance.OnClickPlaceAction((int)PlaceActionType.RerollQuests));
+        btnDeliverQuest.onClick.AddListener(() => GameManager.Instance.OnClickPlaceAction((int)PlaceActionType.DeliverQuest));
+        btnAcceptQuest.onClick.AddListener(() => GameManager.Instance.OnClickPlaceAction((int)PlaceActionType.AcceptQuest));
+        btnBack.onClick.AddListener(() => GameManager.Instance.OnClickBackToMap());
     }
 
     private void OnTalkClicked()
@@ -60,7 +70,7 @@ public class PlaceActionUIController : MonoBehaviour
     {
         if (state == null) return;
         
-        MapLocation loc = state.playerLocation;
+        MapLocation loc = state.player.location;
         if (!themeDict.ContainsKey(loc)) return;
 
         var theme = themeDict[loc];
@@ -74,8 +84,8 @@ public class PlaceActionUIController : MonoBehaviour
         // 2. 버튼 활성화 제어 (장소별 스펙 반영)
         btnTalk.gameObject.SetActive(theme.showTalkButton);
         btnBuy.gameObject.SetActive(theme.showShopButton);
-        btnSell.gameObject.SetActive(theme.showShopButton); // 상점이면 같이 노출
-        btnUpgrade.gameObject.SetActive(theme.showInvestigateButton || loc == MapLocation.TrainingGround); // 훈련장 업그레이드
+        btnSell.gameObject.SetActive(theme.showShopButton);
+        btnUpgrade.gameObject.SetActive(theme.showInvestigateButton || loc == MapLocation.TrainingGround || loc == MapLocation.Base); 
         btnFood.gameObject.SetActive(loc == MapLocation.Cafe);
         btnRest.gameObject.SetActive(theme.showRestButton);
         btnReroll.gameObject.SetActive(theme.showQuestButton); // 게시판 리롤
@@ -83,8 +93,12 @@ public class PlaceActionUIController : MonoBehaviour
         // 3. 특수 조건 버튼 제어
         if (loc == MapLocation.TrainingGround)
         {
-            // 훈련 보조는 전투체가 실제 훈련 중일 때만 노출
-            bool isTraining = state.fighter.schedule[state.fighter.slotProgress].type == FighterSlotType.Training;
+            // 훈련 보조는 전투체가 실제 훈련 중일 때만 노출 (인덱스 버그 방지)
+            bool isTraining = false;
+            if (state.fighter.slotProgress < GameState.DaySlotCount)
+            {
+                isTraining = state.fighter.schedule[state.fighter.slotProgress].type == FighterSlotType.Training;
+            }
             btnSupport.gameObject.SetActive(isTraining);
             btnUpgrade.gameObject.SetActive(true);
         }
@@ -94,7 +108,7 @@ public class PlaceActionUIController : MonoBehaviour
         }
 
         // 퀘스트 관련
-        bool canDeliver = state.quests.CheckDelivery(loc) != null;
+        bool canDeliver = QuestManager.Instance != null && QuestManager.Instance.CheckDelivery(loc) != null;
         btnDeliverQuest.gameObject.SetActive(canDeliver);
         btnAcceptQuest.gameObject.SetActive(theme.showQuestButton);
     }

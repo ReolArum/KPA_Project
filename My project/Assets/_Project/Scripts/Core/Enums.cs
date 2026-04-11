@@ -4,8 +4,11 @@ public enum GamePhase
     Title,
     MorningSchedule, // [NEW] 아침 스케줄 설정
     DayMap,          // [NEW] 낮 지도 활동
+    DayPlaceAction,  // [ADD] 장소 내 활동 (호환성)
     NightTransition, // [NEW] 밤 전환 (거점 이동)
     NightAction,     // [NEW] 밤 메인 행동 (탐사/아레나)
+    BattlePreparation, // [ADD] 아레나 준비
+    Battle,            // [ADD] 아레나 전투 중
     LateNightReport  // [NEW] 심야 정산 및 리포트
 }
 
@@ -26,10 +29,11 @@ public enum ScheduleTrainingType { BasicPhysical, Skill, SimulationBattle }
 public enum MapLocation
 {
     None = -1,
-    Base,           // 거점
-    GeneralStore,   // 잡화점
+    Base,           // 거점 / 집
+    TrainingGround, // 훈련장
+    GeneralStore,   // 잡화점 / 상점
     EquipmentShop,  // 장비상점
-    Agency,         // 흥신소
+    Agency,         // 흥신소 / 게시판
     JunkYard,       // 폐기물처리장
     Cafe,           // 카페
     HardwareStore   // 만물상
@@ -59,7 +63,7 @@ public enum NightActionType
     Rest
 }
 
-// ===== 훈련 세부 스탯 (6대 스탯) =====
+// ===== 훈련 세부 스탯 (공식 6대 스탯) =====
 public enum TrainingStat
 {
     Strength,     // STR (힘)
@@ -81,6 +85,7 @@ public enum ExplorationEventType
     Enemy,         // [ADD] 이동형 적 (범위 진입 시 이벤트 발생, 선택권 사용 가능)
     Hazard,        // 함정/위험 (범위 진입 시 이벤트 발생)
     Obstacle,      // 장애물 (범위 진입 시 이벤트 발생)
+    Clue,          // [ADD] 단서 수집
     Interactive,   // 상호작용 오브젝트 (범위 진입 시 이벤트 발생)
     Reward,        // 보상 상자 (범위 진입 시 이벤트 발생)
     Exit           // 탈출구 (범위 진입 시 이벤트 발생)

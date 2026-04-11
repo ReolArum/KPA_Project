@@ -133,7 +133,7 @@ public class BattlePreparationUI : MonoBehaviour
         if (skillDB != null)
             state.combatData.CheckAndUnlockSkills(skillDB.allSkills);
 
-        previewOpponent = CombatUnit.CreateOpponent(state.arena.currentRank, state.day);
+        previewOpponent = CombatUnit.CreateOpponent(state.arena.currentRank, state.player.day);
 
         if (panelPreparation) panelPreparation.SetActive(true);
         ShowTab(0);

@@ -27,24 +27,27 @@ public class ScheduleStatusUI : MonoBehaviour
 
     public void Refresh(GameState state)
     {
-        var schedule = FighterScheduleManager.Instance.GetCurrentSchedule();
+        var schedule = state.fighter.schedule;
         
         for (int i = 0; i < _slotUIs.Length; i++)
         {
             if (i >= schedule.Length) break;
 
             var slot = schedule[i];
-            if (slot.actionData != null)
+            
+            string actionName = slot.type switch
             {
-                _slotUIs[i].actionNameText.text = slot.actionData.actionName;
-                _slotUIs[i].bonusText.text = slot.isBonusApplied ? "<color=yellow>X1.5</color>" : "";
-                if (_slotUIs[i].iconImage != null) _slotUIs[i].iconImage.sprite = slot.actionData.icon;
-            }
-            else
-            {
-                _slotUIs[i].actionNameText.text = "공백";
-                _slotUIs[i].bonusText.text = "";
-            }
+                FighterSlotType.Training => GameManager.GetStatName(slot.trainingStat),
+                FighterSlotType.Work => "알바",
+                FighterSlotType.Rest => "휴식",
+                _ => "공백"
+            };
+
+            _slotUIs[i].actionNameText.text = actionName;
+            _slotUIs[i].bonusText.text = slot.efficiencyMultiplier > 1.0f ? "<color=yellow>X1.5</color>" : "";
+            
+            // 아이콘은 현재 타입에 따라 기본 아이콘을 넣거나 생략 (현재 Slot에 Icon 필드 없음)
+            if (_slotUIs[i].iconImage != null) _slotUIs[i].iconImage.gameObject.SetActive(false);
         }
     }
 }

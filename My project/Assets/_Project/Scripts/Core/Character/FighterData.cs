@@ -41,4 +41,18 @@ public class FighterData
         if (!stats.ContainsKey(s)) stats[s] = 0;
         stats[s] += Mathf.RoundToInt(amount * multiplier);
     }
+
+    /// <summary>
+    /// 6대 스탯의 합산을 통해 현재 전투력을 계산합니다.
+    /// </summary>
+    public int CalculateTotalPower()
+    {
+        int total = 0;
+        foreach (var stat in stats)
+        {
+            if (stat.Key != TrainingStat.None)
+                total += stat.Value;
+        }
+        return total;
+    }
 }

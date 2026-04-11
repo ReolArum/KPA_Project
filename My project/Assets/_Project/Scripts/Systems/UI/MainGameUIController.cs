@@ -1,18 +1,39 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
 public class MainGameUIController : MonoBehaviour
 {
+    public static MainGameUIController Instance { get; private set; }
     [Header("Module Controllers")]
     [SerializeField] private GlobalHUDController globalHUD;
+
+    [Header("VN Dialogue UI")]
+    [SerializeField] private GameObject  panelVN;
+    [SerializeField] private TMP_Text    textVNName;
+    [SerializeField] private TMP_Text    textVNDialogue;
+    [SerializeField] private Image       imgVNLeft;
+    [SerializeField] private Image       imgVNRight;
+    [SerializeField] private Image       imgVNBackground;
+    [SerializeField] private Button      btnVNDialogueBox;
+
+    private List<DialogueStep>  currentVNSteps;
+    private int                 currentVNIndex;
+    private System.Action       onVNComplete;
+    private DialogueNodeData    curEventNode;
 
     [Header("Panels")]
     [SerializeField] private GameObject panelSchedule;
     [SerializeField] private GameObject panelDayMap;
     [SerializeField] private GameObject panelDayPlaceAction;
     [SerializeField] private GameObject panelDaySummary;
+    [SerializeField] private GameObject panelNightChoice;
+
+    [Header("Night Choice Buttons")]
+    [SerializeField] private Button btnNightExploration;
+    [SerializeField] private Button btnNightArena;
+    [SerializeField] private Button btnNightRest;
 
     [Header("Fighter Schedule")]
     [SerializeField] private Transform scheduleGridRoot;
@@ -63,11 +84,20 @@ public class MainGameUIController : MonoBehaviour
 
     void Awake()
     {
+        if (Instance == null) Instance = this;
+        else { Destroy(gameObject); return; }
+
+        if (panelVN) panelVN.SetActive(false);
+        if (btnVNDialogueBox) btnVNDialogueBox.onClick.AddListener(OnVNClick);
+
         gm = GameManager.Instance; // Uses persistent singleton
         
+        btnMapHome.onClick.AddListener(()           => GameManager.Instance.OnClickMapLocation((int)MapLocation.Base));
+
         BuildScheduleGrid();
         SetupActionTabs();
         SetupMapButtons();
+        SetupNightButtons();
         SetupScheduleButtons();
         SetupCalendarButtons();
         if (btnNextDay) btnNextDay.onClick.AddListener(() => gm.OnClickNextDay());
@@ -80,6 +110,8 @@ public class MainGameUIController : MonoBehaviour
         GameEvents.OnRefreshRequested += HandleRefreshRequested;
         GameEvents.OnActionResult += HandleActionResult;
         GameEvents.OnGameStateChanged += HandleGameStateChanged;
+        GameEvents.OnExplorationVNStarted += HandleVNStarted;
+        GameEvents.OnExplorationEventTriggered += HandleEventTriggered;
     }
 
     void OnDisable()
@@ -88,6 +120,8 @@ public class MainGameUIController : MonoBehaviour
         GameEvents.OnRefreshRequested -= HandleRefreshRequested;
         GameEvents.OnActionResult -= HandleActionResult;
         GameEvents.OnGameStateChanged -= HandleGameStateChanged;
+        GameEvents.OnExplorationVNStarted -= HandleVNStarted;
+        GameEvents.OnExplorationEventTriggered -= HandleEventTriggered;
     }
 
     // --- Event Handlers ---
@@ -95,6 +129,58 @@ public class MainGameUIController : MonoBehaviour
     void HandleRefreshRequested(GameState state, GamePhase phase) => RefreshAll(state, phase);
     void HandleActionResult(string msg) { if (textPlaceActionResult) textPlaceActionResult.text = msg; }
     void HandleGameStateChanged(GameState state) => RefreshAll(state, gm.Phase);
+
+    void HandleVNStarted(List<DialogueStep> steps, System.Action onComplete)
+    {
+        currentVNSteps = steps;
+        currentVNIndex = 0;
+        onVNComplete = onComplete;
+        if (panelVN) panelVN.SetActive(true);
+        ShowVNStep();
+    }
+
+    void HandleEventTriggered(DialogueNodeData node, List<DialogueChoiceData> choices)
+    {
+        curEventNode = node;
+    }
+
+    void OnVNClick()
+    {
+        currentVNIndex++;
+        if (currentVNIndex < currentVNSteps.Count)
+        {
+            ShowVNStep();
+        }
+        else
+        {
+            if (panelVN) panelVN.SetActive(false);
+            onVNComplete?.Invoke();
+        }
+    }
+
+    void ShowVNStep()
+    {
+        if (currentVNSteps == null || currentVNIndex < 0 || currentVNIndex >= currentVNSteps.Count) return;
+
+        var step = currentVNSteps[currentVNIndex];
+        if (textVNName) textVNName.text = step.characterName;
+        if (textVNDialogue) textVNDialogue.text = step.dialogueText;
+
+        if (imgVNLeft) 
+        {
+            imgVNLeft.sprite = step.leftSprite;
+            imgVNLeft.gameObject.SetActive(step.leftSprite != null);
+        }
+        if (imgVNRight) 
+        {
+            imgVNRight.sprite = step.rightSprite;
+            imgVNRight.gameObject.SetActive(step.rightSprite != null);
+        }
+        if (imgVNBackground && step.backgroundOverride != null) 
+        {
+            imgVNBackground.sprite = step.backgroundOverride;
+        }
+    }
 
     // --- Setup ---
     void BuildScheduleGrid()
@@ -136,17 +222,17 @@ public class MainGameUIController : MonoBehaviour
 
     void SetupMapButtons()
     {
-        if (btnMapHome) btnMapHome.onClick.AddListener(() => gm.OnClickMapLocation((int)MapLocation.Home));
-        if (btnMapShop) btnMapShop.onClick.AddListener(() => gm.OnClickMapLocation((int)MapLocation.Shop));
+        if (btnMapHome) btnMapHome.onClick.AddListener(() => gm.OnClickMapLocation((int)MapLocation.Base));
+        if (btnMapShop) btnMapShop.onClick.AddListener(() => gm.OnClickMapLocation((int)MapLocation.GeneralStore));
         if (btnMapTrainingGround) btnMapTrainingGround.onClick.AddListener(() => gm.OnClickMapLocation((int)MapLocation.TrainingGround));
         if (btnMapCafe) btnMapCafe.onClick.AddListener(() => gm.OnClickMapLocation((int)MapLocation.Cafe));
-        if (btnMapQuestBoard) btnMapQuestBoard.onClick.AddListener(() => gm.OnClickMapLocation((int)MapLocation.QuestBoard));
+        if (btnMapQuestBoard) btnMapQuestBoard.onClick.AddListener(() => gm.OnClickMapLocation((int)MapLocation.Agency));
     }
 
     void SetupScheduleButtons()
     {
-        if (btnApplyYesterday) btnApplyYesterday.onClick.AddListener(() => gm.OnClickApplyYesterdaySchedule());
-        if (btnResetSchedule) btnResetSchedule.onClick.AddListener(() => gm.OnClickResetSchedule());
+        if (btnApplyYesterday) btnApplyYesterday.onClick.AddListener(() => gm.CopyYesterdaySchedule());
+        if (btnResetSchedule) btnResetSchedule.onClick.AddListener(() => gm.ResetFighterSchedule());
         if (btnStartDay) btnStartDay.onClick.AddListener(() => gm.OnClickStartDay());
     }
 
@@ -154,6 +240,13 @@ public class MainGameUIController : MonoBehaviour
     {
         if (btnOpenCalendar) btnOpenCalendar.onClick.AddListener(() => gm.OnClickOpenCalendar());
         if (btnCalendarClose) btnCalendarClose.onClick.AddListener(() => gm.OnClickCloseCalendar());
+    }
+
+    void SetupNightButtons()
+    {
+        if (btnNightExploration) btnNightExploration.onClick.AddListener(() => gm.OnClickTransitionToNight((int)NightActionType.Exploration));
+        if (btnNightArena) btnNightArena.onClick.AddListener(() => gm.OnClickTransitionToNight((int)NightActionType.Arena));
+        if (btnNightRest) btnNightRest.onClick.AddListener(() => gm.OnClickTransitionToNight((int)NightActionType.Rest));
     }
 
     // --- Logic ---
@@ -172,18 +265,32 @@ public class MainGameUIController : MonoBehaviour
 
     void ShowPhase(GamePhase phase)
     {
-        if (panelSchedule) panelSchedule.SetActive(phase == GamePhase.ScheduleSetting);
+        if (panelSchedule) panelSchedule.SetActive(phase == GamePhase.MorningSchedule);
         if (panelDayMap) panelDayMap.SetActive(phase == GamePhase.DayMap);
         if (panelDayPlaceAction) panelDayPlaceAction.SetActive(phase == GamePhase.DayPlaceAction);
-        if (panelDaySummary) panelDaySummary.SetActive(phase == GamePhase.DaySummary);
+        if (panelNightChoice) panelNightChoice.SetActive(phase == GamePhase.NightTransition);
+        if (panelDaySummary) panelDaySummary.SetActive(phase == GamePhase.LateNightReport);
+    }
+
+    public void RefreshUI(GameState state)
+    {
+        RefreshAll(state, gm.Phase);
     }
 
     public void RefreshAll(GameState state, GamePhase phase)
     {
         if (globalHUD) globalHUD.Refresh(state, phase);
         RefreshScheduleGrid(state);
+        
         if (textSchedulePreviewResult) textSchedulePreviewResult.text = gm.GetTotalPredictedOutcome();
-        if (phase == GamePhase.DaySummary) RefreshDaySummary(state);
+        
+        if (phase == GamePhase.NightTransition)
+        {
+            if (btnNightArena) btnNightArena.interactable = state.IsArenaOpen;
+        }
+
+        if (phase == GamePhase.LateNightReport) 
+            RefreshDaySummary(state);
     }
 
     void RefreshScheduleGrid(GameState state)
@@ -193,26 +300,43 @@ public class MainGameUIController : MonoBehaviour
             var slot = state.fighter.schedule[i];
             string label = slot.type switch {
                 FighterSlotType.Training => GameManager.GetStatName(slot.trainingStat),
-                FighterSlotType.PartTime => "알바",
-                FighterSlotType.Rest => "휴식",
+                FighterSlotType.Work => "?�바",
+                FighterSlotType.Rest => "?�식",
                 _ => "미정"
             };
             Color c = slot.type switch {
                 FighterSlotType.Training => colorTraining,
-                FighterSlotType.PartTime => colorPartTime,
+                FighterSlotType.Work => colorPartTime,
                 FighterSlotType.Rest => colorRest,
                 _ => Color.gray
             };
             slotViews[i].SetDirect(label, c);
-            slotViews[i].SetProgressVisual(state.fighterSlotProgress, i == selectedScheduleSlotIndex);
+            slotViews[i].SetProgressVisual(state.fighter.slotProgress, i == selectedScheduleSlotIndex);
         }
     }
 
     void RefreshDaySummary(GameState state)
     {
         if (textSummary == null) return;
+        
+        string logSummary = "";
+        if (state.dailyActivityLogs.Count > 0)
+        {
+            foreach (var log in state.dailyActivityLogs)
+            {
+                logSummary += $"- {log}\n";
+            }
+        }
+        else
+        {
+            logSummary = "(?�동 기록 ?�음)\n";
+        }
+
         textSummary.text = $"===== {state.DateString} 결산 =====\n\n" +
-            $"힘: {state.GetStat(TrainingStat.Strength)}  민: {state.GetStat(TrainingStat.Agility)}  기: {state.GetStat(TrainingStat.Dexterity)}  체: {state.GetStat(TrainingStat.Endurance)}\n" +
-            $"Gold: {state.gold}  스트레스: {state.stress}  피로: {state.fatigue}";
+            $"[?�늘???�동]\n{logSummary}\n" +
+            $"[?�재 ?�력�?\n" +
+            $"?? {state.GetStat(TrainingStat.Strength)}  민첩: {state.GetStat(TrainingStat.Agility)}  ?�구: {state.GetStat(TrainingStat.Vitality)}\n" +
+            $"지?? {state.GetStat(TrainingStat.Intelligence)}  근성: {state.GetStat(TrainingStat.Guts)}  감각: {state.GetStat(TrainingStat.Sensitivity)}\n" +
+            $"골드: {state.player.gold}  명성: {state.player.reputation}";
     }
 }

@@ -14,6 +14,7 @@ public static class SaveSystem
     {
         public int type;
         public int trainingStat;
+        public float efficiencyMultiplier;
     }
 
     [System.Serializable]
@@ -163,7 +164,7 @@ public static class SaveSystem
     {
         var data = new SaveData
         {
-            day                  = state.day,
+            day                  = state.player.day,
             gold                 = state.player.gold,
             stress               = state.fighter.stress,
             fatigue              = state.fighter.fatigue,
@@ -187,7 +188,8 @@ public static class SaveSystem
             data.fighterSchedule[i] = new FighterSlotDto
             {
                 type        = (int)state.fighter.schedule[i].type,
-                trainingStat = (int)state.fighter.schedule[i].trainingStat
+                trainingStat = (int)state.fighter.schedule[i].trainingStat,
+                efficiencyMultiplier = state.fighter.schedule[i].efficiencyMultiplier
             };
         }
 
@@ -198,7 +200,8 @@ public static class SaveSystem
             data.yesterdaySchedule[i] = new FighterSlotDto
             {
                 type        = (int)state.fighter.yesterdaySchedule[i].type,
-                trainingStat = (int)state.fighter.yesterdaySchedule[i].trainingStat
+                trainingStat = (int)state.fighter.yesterdaySchedule[i].trainingStat,
+                efficiencyMultiplier = state.fighter.yesterdaySchedule[i].efficiencyMultiplier
             };
         }
 
@@ -282,7 +285,7 @@ public static class SaveSystem
         catch { Debug.LogWarning("[SaveSystem] 세이브 파싱 실패, 초기화합니다."); return; }
 
         // 기본
-        state.day               = data.day;
+        state.player.day        = data.day;
         state.player.gold       = data.gold;
         state.fighter.stress    = data.stress;
         state.fighter.fatigue   = data.fatigue;
@@ -306,6 +309,7 @@ public static class SaveSystem
             {
                 state.fighter.schedule[i].type         = (FighterSlotType)data.fighterSchedule[i].type;
                 state.fighter.schedule[i].trainingStat = (TrainingStat)data.fighterSchedule[i].trainingStat;
+                state.fighter.schedule[i].efficiencyMultiplier = data.fighterSchedule[i].efficiencyMultiplier;
             }
         }
 
@@ -316,6 +320,7 @@ public static class SaveSystem
             {
                 state.fighter.yesterdaySchedule[i].type         = (FighterSlotType)data.yesterdaySchedule[i].type;
                 state.fighter.yesterdaySchedule[i].trainingStat = (TrainingStat)data.yesterdaySchedule[i].trainingStat;
+                state.fighter.yesterdaySchedule[i].efficiencyMultiplier = data.yesterdaySchedule[i].efficiencyMultiplier;
             }
         }
 
@@ -386,9 +391,10 @@ public static class SaveSystem
         }
 
         // 퀘스트
-            state.quests.completedQuests = DeserializeQuests(data.completedQuests);
-        }
- 
+        state.quests.availableQuests = DeserializeQuests(data.availableQuests);
+        state.quests.activeQuests    = DeserializeQuests(data.activeQuests);
+        state.quests.completedQuests = DeserializeQuests(data.completedQuests);
+
         // [NEW] 인벤토리 복원
         if (data.inventory != null)
         {

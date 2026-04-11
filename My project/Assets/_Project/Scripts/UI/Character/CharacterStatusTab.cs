@@ -24,7 +24,6 @@ public class CharacterStatusTab : MonoBehaviour
     {
         if (data == null) return;
 
-        // 6대 스탯 업데이트
         textSTR.text = $"STR: {data.GetStat(TrainingStat.Strength)}";
         textAGI.text = $"AGI: {data.GetStat(TrainingStat.Agility)}";
         textVIT.text = $"VIT: {data.GetStat(TrainingStat.Vitality)}";
@@ -32,15 +31,12 @@ public class CharacterStatusTab : MonoBehaviour
         textGUT.text = $"GUT: {data.GetStat(TrainingStat.Guts)}";
         textSEN.text = $"SEN: {data.GetStat(TrainingStat.Sensitivity)}";
 
-        // 컨디션 바 업데이트
-        // HP의 경우 최대치 계산 로직이 필요할 수 있으나 프로토타입은 100 기준
         sliderStress.value = data.stress / 100f;
         sliderFatigue.value = data.fatigue / 100f;
         
         textStress.text = $"{data.stress}/100";
         textFatigue.text = $"{data.fatigue}/100";
         
-        // HP 로직 (전투 스탯 계산기 활용 전까지는 임시 표시)
         sliderHP.value = 1.0f;
         textHP.text = "HP: 100/100";
     }

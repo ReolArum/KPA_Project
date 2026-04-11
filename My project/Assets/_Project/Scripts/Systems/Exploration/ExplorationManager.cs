@@ -13,7 +13,7 @@ public class ExplorationManager : MonoBehaviour
     [Header("Settings")]
     public float moveSpeed = 5f;
     public float timeScale = 1.0f; 
-    // [OPTIMIZE] interactKey 제거 (Input System 사용)
+    public KeyCode interactKey = KeyCode.E; // [RESTORE] UI 표시용으로 복구
 
     [Header("Character Setup")]
     public Fighter fighterPrefab; 
@@ -369,6 +369,7 @@ public class ExplorationManager : MonoBehaviour
     public void StartExploration(ExplorationStageData data)
     {
         stageData = data;
+        ExplorationSceneData.SetupExploration(GameManager.Instance.State);
 
         // [ADD] 씬 마커 스캔 — 기획자가 배치한 오브젝트 위치를 자동으로 읽어옴
         ScanSceneMarkers();
@@ -400,7 +401,7 @@ public class ExplorationManager : MonoBehaviour
         playerTransform = CurrentFighter.transform;
 
         // NavMeshAgent 설정 확인 및 강제 활성화
-        var agent = currentFighter.GetComponent<NavMeshAgent>();
+        var agent = CurrentFighter.GetComponent<NavMeshAgent>();
         if (agent != null)
         {
             agent.speed = moveSpeed;
@@ -441,7 +442,7 @@ public class ExplorationManager : MonoBehaviour
     /// 노드의 실제 사용 위치를 반환합니다.
     /// 씬 마커가 있으면 마커 위치, 없으면 ScriptableObject의 worldPosition을 사용합니다.
     /// </summary>
-    private Vector3 GetNodePosition(ExplorationNodeData node)
+    private Vector3 GetNodePosition(DialogueNodeData node)
     {
         if (nodePositionOverrides.TryGetValue(node.nodeId, out var pos))
             return pos;
@@ -587,7 +588,7 @@ public class ExplorationManager : MonoBehaviour
 
     private void ScanNearbyNodes()
     {
-        ExplorationNodeData currentTriggerNode = null;
+        DialogueNodeData currentTriggerNode = null;
 
         foreach (var node in stageData.nodes)
         {
@@ -665,41 +666,6 @@ public class ExplorationManager : MonoBehaviour
     //  Phase: Event (위험 조우)
     // ====================================================
 
-    public void TriggerEvent(ExplorationNodeData node)
-    {
-        if (node.eventType == ExplorationEventType.None) return;
-        
-        SetPhase(ExplorationPhase.EventProcessing);
-
-        // [MOD] 모든 이벤트는 VN UI를 통해 보여짐 (이미지 시안 기반 통합 레이아웃)
-        List<VNDialogueStep> steps = node.vnSequence;
-
-        // 대화 데이터가 아예 없는 경우, 기본 안내용 대화 1단계 생성
-        if (steps == null || steps.Count == 0)
-        {
-            steps = new List<VNDialogueStep>
-            {
-                new VNDialogueStep 
-                { 
-                    characterName = "시스템", 
-                    dialogueText = $"{node.nodeName ?? node.nodeId}에 도착했습니다." 
-                }
-            };
-        }
-
-        GameEvents.RaiseExplorationVNStarted(steps, () => {
-            // VN 종료 혹은 수집 완료 후 선택지 처리 로직은 UIController에서 handle함
-            // 여기서는 EnvObject 자동 수집 로직(선택지 없는 경우) 처리
-            if (node.eventType == ExplorationEventType.EnvObject && node.choices.Count == 0)
-            {
-                if (!currentState.foundEnvObjectIds.Contains(node.nodeId))
-                {
-                    currentState.foundEnvObjectIds.Add(node.nodeId);
-                    GameEvents.RaiseExplorationEnvObjectFound(node.nodeName ?? node.nodeId);
-                }
-            }
-        });
-    }
 
     public void ResumeMovement(bool shouldRedraw = false)
     {
@@ -743,8 +709,7 @@ public class ExplorationManager : MonoBehaviour
 
         // GameState에 결과 반영
         var state = GameManager.Instance.State;
-        state.gold += currentState.collectedGold;
-        state.todayGoldEarned += currentState.collectedGold;
+        state.AddGold(currentState.collectedGold);
         
         foreach (var id in currentState.foundEnvObjectIds)
         {
@@ -753,6 +718,7 @@ public class ExplorationManager : MonoBehaviour
         }
 
         GameEvents.RaiseActionResult($"탐사 성공! {currentState.collectedGold}G 획득");
+        ExplorationSceneData.CompleteExploration();
         SaveSystem.Save(state);
     }
 
@@ -760,6 +726,7 @@ public class ExplorationManager : MonoBehaviour
     {
         SetPhase(ExplorationPhase.Result);
         GameEvents.RaiseActionResult($"탐사 실패: {reason}");
+        ExplorationSceneData.CompleteExploration();
         
         if (GameManager.Instance != null)
         {
@@ -769,7 +736,7 @@ public class ExplorationManager : MonoBehaviour
 
     public void ExitExploration()
     {
-        // 메인 씬으로 복귀 로직 [FIX] 씬 이름 일치화
+        // 메인 씬으로 복귀 로직
         UnityEngine.SceneManagement.SceneManager.LoadScene("Scene_MainGame");
     }
 }

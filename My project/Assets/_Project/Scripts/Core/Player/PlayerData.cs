@@ -5,6 +5,7 @@ public class PlayerData
 {
     public int gold = 100;
     public int reputation = 0;
+    public int day = 1;
     
     // ===== 플레이어 위치 및 행동 =====
     public int actionsUsed = 0;

@@ -49,12 +49,12 @@ public class CombatBaseStats
     {
         return new CombatBaseStats
         {
-            STR = training.GetValueOrDefault(TrainingStat.Strength,  0),
-            AGI = training.GetValueOrDefault(TrainingStat.Agility,   0),
-            SEN = training.GetValueOrDefault(TrainingStat.Dexterity, 0),
-            VIT = training.GetValueOrDefault(TrainingStat.Endurance, 0),
-            GUT = 5,
-            INT = 5
+            STR = training.GetValueOrDefault(TrainingStat.Strength,     0),
+            AGI = training.GetValueOrDefault(TrainingStat.Agility,      0),
+            VIT = training.GetValueOrDefault(TrainingStat.Vitality,     0),
+            INT = training.GetValueOrDefault(TrainingStat.Intelligence, 0),
+            GUT = training.GetValueOrDefault(TrainingStat.Guts,         0),
+            SEN = training.GetValueOrDefault(TrainingStat.Sensitivity,  0)
         };
     }
 }
