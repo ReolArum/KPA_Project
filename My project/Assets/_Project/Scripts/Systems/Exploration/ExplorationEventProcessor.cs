@@ -4,30 +4,10 @@ using UnityEngine;
 public class ExplorationEventProcessor : MonoBehaviour
 {
     public static ExplorationEventProcessor Instance { get; private set; }
-    private DialogueNodeData currentEventNode; 
 
     void Awake()
     {
         Instance = this;
-    }
-
-    public void ProcessEvent(DialogueNodeData node)
-    {
-        currentEventNode = node; 
-        Debug.Log($"Processing Event: {node.nodeId} ({node.eventType})");
-
-        List<DialogueChoiceData> visibleChoices = FilterChoices(node.choices);
-
-        if (visibleChoices.Count == 0)
-        {
-            Debug.LogWarning("No available choices! Applying force effects and retreating.");
-            ApplyEffectList(node.forceEffects);
-            GameEvents.RaiseActionResult("조건 미충족: 더 이상 진행할 수 없어 후퇴합니다.");
-            ExplorationManager.Instance.ResumeMovement(true); 
-            return;
-        }
-
-        GameEvents.RaiseExplorationEventTriggered(node, visibleChoices);
     }
 
     public List<DialogueChoiceData> FilterChoices(List<DialogueChoiceData> allChoices)
@@ -114,6 +94,7 @@ public class ExplorationEventProcessor : MonoBehaviour
         if (expManager == null) return;
         var expState = expManager.currentState;
         var gameState = (GameManager.Instance != null) ? GameManager.Instance.State : null;
+        if (gameState == null) return; 
 
         foreach (var effect in effects)
         {
@@ -143,6 +124,13 @@ public class ExplorationEventProcessor : MonoBehaviour
                     break;
                 case DialogueEffectType.ItemLoss:
                     if (gameState != null) gameState.inventory.RemoveItem(effect.targetId, (int)effect.amount);
+                    break;
+                case DialogueEffectType.StatChange:
+                    if (gameState != null && effect.statType != TrainingStat.None)
+                    {
+                        gameState.AddStat(effect.statType, (int)effect.amount);
+                        Debug.Log($"[Exploration] Stat Changed: {effect.statType} +{effect.amount}");
+                    }
                     break;
             }
         }

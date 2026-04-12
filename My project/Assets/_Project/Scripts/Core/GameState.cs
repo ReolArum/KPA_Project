@@ -51,6 +51,8 @@ public class GameState
     [Header("Exploration Results")]
     public int explorationGoldTotal = 0;
     public List<string> explorationFoundKeys = new List<string>();
+    public List<string> revealedStageNodeIds = new List<string>(); // [ADD] 낮 행동을 통해 발견된 탐사 노드 ID 리스트
+    public string lastExplorationStatus = ""; // [ADD] 마지막 탐사 결과 상태 (Success/Failed)
 
     // ===== 전투 데이터 ★ =====
     public PlayerCombatData combatData = new PlayerCombatData();

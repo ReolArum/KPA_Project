@@ -16,9 +16,14 @@ public class Fighter : CharacterBase
         AddModule(new AnimationModule());
     }
 
-    // [ADD] 탐사 시스템 등에서 스탯을 편하게 가져오기 위한 헬퍼
     public int GetStat(TrainingStat stat)
     {
         return GetModule<StatModule>()?.GetTotalStat(stat) ?? 0;
+    }
+
+    // [ADD] 외부에서 특정 애니메이션 트리거를 호출하기 위한 헬퍼
+    public void PlayAnimation(string triggerName)
+    {
+        GetModule<AnimationModule>()?.PlayTrigger(triggerName);
     }
 }

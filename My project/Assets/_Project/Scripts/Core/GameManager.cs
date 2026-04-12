@@ -2,6 +2,7 @@
 // 리팩토링: UI 직접 참조 제거 → GameEvents 이벤트 시스템 사용
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using System.Collections.Generic;
 
 public class GameManager : MonoBehaviour
 {
@@ -10,6 +11,8 @@ public class GameManager : MonoBehaviour
     // ====================================================
     [Header("Refs")]
     [SerializeField] private BattlePreparationUI battlePrepUI;
+    [SerializeField] private List<LocationThemeData> locationThemes; // [ADD] 장소 데이터 마스터 리스트
+    private Dictionary<MapLocation, LocationThemeData> themeDict = new();
 
     public static GameManager Instance { get; private set; }
     public GameState  State { get; private set; } = new GameState();
@@ -65,6 +68,13 @@ public class GameManager : MonoBehaviour
             SetPhase(GamePhase.NightAction);
             OnExplorationFinished();
             return;
+        }
+
+        // 데이터 사전 구축
+        themeDict.Clear();
+        if (locationThemes != null)
+        {
+            foreach (var t in locationThemes) themeDict[t.location] = t;
         }
 
         // 일반 초기화
@@ -125,7 +135,17 @@ public class GameManager : MonoBehaviour
         if (ConsumeTime(1))
         {
             State.player.location = target;
-            SetPhase(GamePhase.DayPlaceAction);
+            
+            // [MOD] 장소 진입 시 VN 시스템 트리거 (entryNode 우선)
+            if (themeDict.TryGetValue(target, out var theme) && theme.entryNode != null)
+            {
+                DialogueManager.Instance.StartDialogue(theme.entryNode);
+            }
+            else
+            {
+                // 데이터가 없는 경우 기존 페이즈 전환 (폴백)
+                SetPhase(GamePhase.DayPlaceAction);
+            }
         }
     }
 
@@ -310,6 +330,40 @@ public class GameManager : MonoBehaviour
                     GameEvents.RaiseActionResult("의뢰 게시판 리롤 완료!");
                 }
                 else GameEvents.RaiseActionResult("오늘은 더 이상 리롤할 수 없습니다.");
+                break;
+        }
+    }
+
+    /// <summary>
+    /// VN 선택지에서 전달된 메인 게임용 액션을 처리합니다.
+    /// </summary>
+    public void ApplyChoiceAction(DialogueChoiceData choice)
+    {
+        Debug.Log($"[GameManager] Executing Choice Action: {choice.type}");
+
+        switch (choice.type)
+        {
+            case ExplorationChoiceType.Shop:
+                // TODO: 상점 UI 직접 호출 또는 페이즈 전환
+                // 현재는 기존 장소 UI를 통해 기능을 이용하므로 페이즈 전환으로 연결
+                SetPhase(GamePhase.DayPlaceAction); 
+                break;
+            case ExplorationChoiceType.QuestBoard:
+                SetPhase(GamePhase.DayPlaceAction);
+                // 추가로 의뢰창을 바로 띄우는 로직 연동 가능
+                break;
+            case ExplorationChoiceType.Talk:
+                // NPC와 대화 액션 처리 (LocationThemeData의 talkNode 등 활용)
+                if (themeDict.TryGetValue(State.player.location, out var theme) && theme.talkNode != null)
+                {
+                    DialogueManager.Instance.StartDialogue(theme.talkNode);
+                }
+                break;
+            case ExplorationChoiceType.MapReturn:
+                OnClickBackToMap();
+                break;
+            case ExplorationChoiceType.Interact:
+                // 일반 상호작용은 DialogueManager의 기본 효과(ApplyEffectList)로 처리됨
                 break;
         }
     }

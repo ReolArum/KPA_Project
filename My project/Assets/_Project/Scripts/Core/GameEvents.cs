@@ -21,30 +21,26 @@ public static class GameEvents
     public static event Action<GameState> OnGameStateChanged;
     public static void RaiseGameStateChanged(GameState s) => OnGameStateChanged?.Invoke(s);
 
-    // ── 탐사 관련 이벤드 ──
+    // ── 탐사 관련 이벤트 ──
     public static event Action<ExplorationStageData, ExplorationState> OnExplorationStarted;
     public static void RaiseExplorationStarted(ExplorationStageData d, ExplorationState s) => OnExplorationStarted?.Invoke(d, s);
 
     public static event Action<ExplorationState> OnExplorationUpdated;
     public static void RaiseExplorationUpdated(ExplorationState s) => OnExplorationUpdated?.Invoke(s);
 
-    // ===== [NEW] 탐사 이벤트 로직 =====
-    public static event Action<DialogueNodeData, List<DialogueChoiceData>> OnExplorationEventTriggered;
-    public static void RaiseExplorationEventTriggered(DialogueNodeData node, List<DialogueChoiceData> choices) => 
-        OnExplorationEventTriggered?.Invoke(node, choices);
+    // ===== 탐사 이벤트 로직 =====
 
     public static event Action<DialogueChoiceData> OnExplorationChoiceSelected;
     public static void RaiseExplorationChoiceSelected(DialogueChoiceData choice) => 
         OnExplorationChoiceSelected?.Invoke(choice);
 
-    public static event System.Action<string> OnExplorationEnvObjectFound;
+    public static event Action<string> OnExplorationEnvObjectFound;
     public static void RaiseExplorationEnvObjectFound(string objId) => OnExplorationEnvObjectFound?.Invoke(objId);
 
-    public static event Action<List<DialogueStep>, Action> OnExplorationVNStarted;
-    public static void RaiseExplorationVNStarted(List<DialogueStep> steps, Action onComplete) => OnExplorationVNStarted?.Invoke(steps, onComplete);
-
-    public static event Action<string, bool> OnExplorationInteractionPrompt;
-    public static void RaiseExplorationInteractionPrompt(string prompt, bool show) => OnExplorationInteractionPrompt?.Invoke(prompt, show);
+    // [MOD] 콜백에 ExplorationChoiceType을 전달하여 선택지 타입에 따른 노드 처리가 가능하게 함
+    public static event Action<List<DialogueStep>, DialogueNodeData, Action<ExplorationChoiceType>> OnExplorationVNStarted;
+    public static void RaiseExplorationVNStarted(List<DialogueStep> steps, DialogueNodeData node, Action<ExplorationChoiceType> onComplete) => 
+        OnExplorationVNStarted?.Invoke(steps, node, onComplete);
 
     public static event Action<ExplorationPhase> OnExplorationPhaseChanged;
     public static void RaiseExplorationPhaseChanged(ExplorationPhase phase) => OnExplorationPhaseChanged?.Invoke(phase);

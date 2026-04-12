@@ -96,7 +96,16 @@ public enum ExplorationChoiceType
     Interact,   // 상호작용 (스탯 체크, 일반 조사 등)
     Combat,     // 전투 (적 조우 시 선택권 소모)
     Escape,     // 회피/후퇴
-    Exit        // 탐사 탈출 성공
+    Exit,       // 탐사 탈출 성공
+    
+    // --- Main Game Actions ---
+    None,
+    Talk,       // NPC와 대화
+    Shop,       // 상점 UI 열기
+    QuestBoard, // 의뢰 게시판 열기
+    MapReturn,  // 지도로 돌아가기
+    Facility,   // 시설 관리
+    Training    // 훈련 보조/수행
 }
 
 public enum ExplorationPhase

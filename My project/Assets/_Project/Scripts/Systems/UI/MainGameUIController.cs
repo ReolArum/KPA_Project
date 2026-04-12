@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -20,8 +20,13 @@ public class MainGameUIController : MonoBehaviour
 
     private List<DialogueStep>  currentVNSteps;
     private int                 currentVNIndex;
-    private System.Action       onVNComplete;
+    private System.Action<ExplorationChoiceType> onVNComplete;
     private DialogueNodeData    curEventNode;
+    private List<DialogueChoiceData> curChoices; // [ADD] 현재 활성화된 선택지 리스트
+
+    [Header("Choice UI (VN Mode)")]
+    [SerializeField] private Transform choiceButtonRoot;
+    [SerializeField] private Button choiceButtonPrefab;
 
     [Header("Panels")]
     [SerializeField] private GameObject panelSchedule;
@@ -92,7 +97,7 @@ public class MainGameUIController : MonoBehaviour
 
         gm = GameManager.Instance; // Uses persistent singleton
         
-        btnMapHome.onClick.AddListener(()           => GameManager.Instance.OnClickMapLocation((int)MapLocation.Base));
+        if (btnMapHome) btnMapHome.onClick.AddListener(() => GameManager.Instance.OnClickMapLocation((int)MapLocation.Base));
 
         BuildScheduleGrid();
         SetupActionTabs();
@@ -111,7 +116,6 @@ public class MainGameUIController : MonoBehaviour
         GameEvents.OnActionResult += HandleActionResult;
         GameEvents.OnGameStateChanged += HandleGameStateChanged;
         GameEvents.OnExplorationVNStarted += HandleVNStarted;
-        GameEvents.OnExplorationEventTriggered += HandleEventTriggered;
     }
 
     void OnDisable()
@@ -121,7 +125,6 @@ public class MainGameUIController : MonoBehaviour
         GameEvents.OnActionResult -= HandleActionResult;
         GameEvents.OnGameStateChanged -= HandleGameStateChanged;
         GameEvents.OnExplorationVNStarted -= HandleVNStarted;
-        GameEvents.OnExplorationEventTriggered -= HandleEventTriggered;
     }
 
     // --- Event Handlers ---
@@ -130,18 +133,34 @@ public class MainGameUIController : MonoBehaviour
     void HandleActionResult(string msg) { if (textPlaceActionResult) textPlaceActionResult.text = msg; }
     void HandleGameStateChanged(GameState state) => RefreshAll(state, gm.Phase);
 
-    void HandleVNStarted(List<DialogueStep> steps, System.Action onComplete)
+    void HandleVNStarted(List<DialogueStep> steps, DialogueNodeData node, System.Action<ExplorationChoiceType> onComplete)
     {
         currentVNSteps = steps;
         currentVNIndex = 0;
         onVNComplete = onComplete;
-        if (panelVN) panelVN.SetActive(true);
-        ShowVNStep();
-    }
+        curEventNode = node; 
+        
+        if (panelVN)
+        {
+            panelVN.SetActive(true);
+            if (btnVNDialogueBox) btnVNDialogueBox.interactable = true;
 
-    void HandleEventTriggered(DialogueNodeData node, List<DialogueChoiceData> choices)
-    {
-        curEventNode = node;
+            // [FIX] 대화 데이터가 없는 경우 즉시 선택지 표시 (장소 즉시 진입 대응)
+            if (currentVNSteps == null || currentVNSteps.Count == 0)
+            {
+                if (textVNName) textVNName.text = "";
+                if (textVNDialogue) textVNDialogue.text = "";
+                ProcessAndShowChoices();
+            }
+            else
+            {
+                ShowVNStep();
+            }
+        }
+        else
+        {
+            onComplete?.Invoke(ExplorationChoiceType.None);
+        }
     }
 
     void OnVNClick()
@@ -153,8 +172,47 @@ public class MainGameUIController : MonoBehaviour
         }
         else
         {
-            if (panelVN) panelVN.SetActive(false);
-            onVNComplete?.Invoke();
+            // [FIX] 대화 종료 후 선택지가 있다면 표시, 없으면 패널 닫기
+            if (curEventNode != null && curEventNode.choices != null && curEventNode.choices.Count > 0)
+            {
+                ProcessAndShowChoices();
+            }
+            else
+            {
+                if (panelVN) panelVN.SetActive(false);
+                onVNComplete?.Invoke(ExplorationChoiceType.None);
+            }
+        }
+    }
+
+    private void ProcessAndShowChoices()
+    {
+        if (curEventNode == null || choiceButtonRoot == null || choiceButtonPrefab == null) return;
+
+        // 대화 박스 클릭 비활성화 (선택지만 강제)
+        if (btnVNDialogueBox) btnVNDialogueBox.interactable = false;
+
+        // 기존 버튼 제거
+        foreach (Transform child in choiceButtonRoot) Destroy(child.gameObject);
+
+        // 1. 선택지 필터링 (이미 DialogueManager에서 거쳐오지만 안전장치로 재점검 혹은 직접 사용)
+        curChoices = DialogueManager.Instance.FilterChoices(curEventNode.choices);
+
+        // 2. 버튼 생성
+        foreach (var choice in curChoices)
+        {
+            var btn = Instantiate(choiceButtonPrefab, choiceButtonRoot);
+            var label = btn.GetComponentInChildren<TMP_Text>();
+            if (label) label.text = choice.label;
+
+            btn.onClick.AddListener(() => {
+                // [NEW] 메인 게임용 선택지 액션 처리
+                GameManager.Instance.ApplyChoiceAction(choice);
+                
+                if (panelVN) panelVN.SetActive(false);
+                onVNComplete?.Invoke(choice.type);
+                curEventNode = null;
+            });
         }
     }
 

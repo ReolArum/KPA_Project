@@ -25,7 +25,7 @@ public class DialogueManager : MonoBehaviour
     /// <summary>
     /// 새로운 대화 노드를 실행합니다.
     /// </summary>
-    public void StartDialogue(DialogueNodeData node, System.Action onComplete = null)
+    public void StartDialogue(DialogueNodeData node, System.Action<ExplorationChoiceType> onComplete = null)
     {
         if (node == null) return;
 
@@ -40,23 +40,18 @@ public class DialogueManager : MonoBehaviour
             Debug.LogWarning("[DialogueManager] No available choices. Applying force effects.");
             ApplyEffectList(node.forceEffects);
             GameEvents.RaiseActionResult(node.forceFailMessage ?? "조건을 만족하지 못해 진행할 수 없습니다.");
-            onComplete?.Invoke();
+            onComplete?.Invoke(ExplorationChoiceType.None);
             return;
         }
 
         // 3. UI 알림 (기존 탐사 UI와 호환되거나 범용 UI로 확장)
         // 현재는 탐사 UI가 이 이벤트를 구독하고 있음
-        GameEvents.RaiseExplorationVNStarted(node.vnSequence, () => {
-            // 대화(VN)가 끝난 후, 선택지가 있다면 표시
-            if (visibleChoices.Count > 0)
+        GameEvents.RaiseExplorationVNStarted(node.vnSequence, node, (ExplorationChoiceType choiceType) => {
+            // 대화(VN)가 끝난 후, 개별 효과 즉시 적용 (선택지는 ExplorationUIController에서 노드 데이터를 통해 직접 처리)
+            if (visibleChoices.Count == 0)
             {
-                GameEvents.RaiseExplorationEventTriggered(node, visibleChoices);
-            }
-            else
-            {
-                // 선택지 없는 노드라면 공통 효과 즉시 적용
                 ApplyEffectList(node.forceEffects);
-                onComplete?.Invoke();
+                onComplete?.Invoke(choiceType);
             }
         });
     }

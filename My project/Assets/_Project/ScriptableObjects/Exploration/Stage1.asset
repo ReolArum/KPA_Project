@@ -1,0 +1,201 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bac353013b12f1f478e135e658c9ec86, type: 3}
+  m_Name: Stage1
+  m_EditorClassIdentifier: Assembly-CSharp::ExplorationStageData
+  stageName: "\uD14C\uC2A4\uD2B8 \uAD6C\uC5ED (\uC2E4\uD5D8\uC2E4)"
+  limitTime: 120
+  maxEnemyTickets: 5
+  startPosition: {x: 0, y: 0, z: 0}
+  nodes:
+  - nodeId: Start
+    nodeName: "\uC2DC\uC791 \uC9C0\uC810"
+    worldPosition: {x: 0, y: 0, z: 0}
+    eventType: 0
+    isOneTime: 1
+    isInfoRequired: 0
+    vnSequence: []
+    requirements: []
+    choices: []
+    forceEffects: []
+    forceFailMessage: 
+    envObjectRange: 2
+    interactionRange: 1.5
+  - nodeId: Trap_01
+    nodeName: "\uD654\uC7AC \uBC1C\uC0DD"
+    worldPosition: {x: 5, y: 0, z: 0}
+    eventType: 3
+    isOneTime: 0
+    isInfoRequired: 0
+    vnSequence:
+    - characterName: "\uCE58\uC6B0"
+      dialogueText: "\uC55E\uC5D0 \uBD88\uC774 \uB0AC\uB2E4!"
+      leftSprite: {fileID: -6903144908483564098, guid: 3e24d2af40d5ea1479cdab2c614f9449, type: 3}
+      rightSprite: {fileID: 0}
+      backgroundOverride: {fileID: 4420928589843168583, guid: a77eee65d45a9604d8d21bc641ea8af4, type: 3}
+    requirements: []
+    choices:
+    - label: "\uBB3C\uC744 \uBD80\uC5B4\uC11C \uB048\uB2E4"
+      type: 0
+      effects:
+      - type: 4
+        amount: 1
+        targetId: Water
+        statType: -1
+      shouldRedrawPath: 0
+      ownRequirements:
+      - type: 3
+        statType: -1
+        minValue: 1
+        targetId: Water
+    - label: "\uBB50 \uC5C6\uB2E4www"
+      type: 2
+      effects: []
+      shouldRedrawPath: 1
+      ownRequirements: []
+    forceEffects: []
+    forceFailMessage: 
+    envObjectRange: 2
+    interactionRange: 1.5
+  - nodeId: Exit
+    nodeName: 
+    worldPosition: {x: 10, y: 0, z: 0}
+    eventType: 8
+    isOneTime: 1
+    isInfoRequired: 0
+    vnSequence: []
+    requirements: []
+    choices: []
+    forceEffects: []
+    forceFailMessage: 
+    envObjectRange: 2
+    interactionRange: 1.5
+  - nodeId: Key
+    nodeName: "\uBB38 \uC5F4\uC1E0"
+    worldPosition: {x: 10, y: 0, z: 0}
+    eventType: 1
+    isOneTime: 1
+    isInfoRequired: 0
+    vnSequence: []
+    requirements: []
+    choices: []
+    forceEffects:
+    - type: 3
+      amount: 1
+      targetId: Key
+      statType: -1
+    forceFailMessage: 
+    envObjectRange: 2
+    interactionRange: 1.5
+  - nodeId: Water
+    nodeName: "\uBB3C"
+    worldPosition: {x: 10, y: 0, z: 0}
+    eventType: 1
+    isOneTime: 1
+    isInfoRequired: 0
+    vnSequence: []
+    requirements: []
+    choices: []
+    forceEffects:
+    - type: 3
+      amount: 1
+      targetId: Water
+      statType: -1
+    forceFailMessage: 
+    envObjectRange: 2
+    interactionRange: 1.5
+  - nodeId: Door_1
+    nodeName: "\uBB38"
+    worldPosition: {x: 10, y: 0, z: 0}
+    eventType: 4
+    isOneTime: 0
+    isInfoRequired: 0
+    vnSequence:
+    - characterName: "\uC548\uB0B4\uC790"
+      dialogueText: "\uC5F4\uC1E0\uAC00 \uC788\uB098\uC694?"
+      leftSprite: {fileID: 0}
+      rightSprite: {fileID: 5365032424008789997, guid: 1795cd1111145234597a7e370c62cead, type: 3}
+      backgroundOverride: {fileID: 8620740956130020899, guid: 3a6178873bd5e4d4696f4c80d4b03f2d, type: 3}
+    - characterName: "\uC548\uCE58\uC6B0"
+      dialogueText: "\uADF8\uB7F0\uAC8C \uC788\uC744\uB9AC\uAC00"
+      leftSprite: {fileID: -6903144908483564098, guid: 3e24d2af40d5ea1479cdab2c614f9449, type: 3}
+      rightSprite: {fileID: 0}
+      backgroundOverride: {fileID: 8620740956130020899, guid: 3a6178873bd5e4d4696f4c80d4b03f2d, type: 3}
+    requirements: []
+    choices:
+    - label: "\uC5F4\uC1E0\uB85C \uC5F0\uB2E4"
+      type: 0
+      effects:
+      - type: 4
+        amount: 0
+        targetId: Key
+        statType: -1
+      shouldRedrawPath: 0
+      ownRequirements:
+      - type: 3
+        statType: 0
+        minValue: 1
+        targetId: Key
+    - label: "\uB3CC\uC544\uAC04\uB2E4"
+      type: 2
+      effects: []
+      shouldRedrawPath: 1
+      ownRequirements: []
+    forceEffects:
+    - type: 7
+      amount: 0
+      targetId: 12
+      statType: 0
+    forceFailMessage: "\uC5F4\uC1E0\uAC00 \uC5C6\uB2E4"
+    envObjectRange: 2
+    interactionRange: 1.5
+  - nodeId: Enemy
+    nodeName: "\uC801"
+    worldPosition: {x: 10, y: 0, z: 0}
+    eventType: 2
+    isOneTime: 0
+    isInfoRequired: 0
+    vnSequence:
+    - characterName: "\uC801"
+      dialogueText: "\uB10C \uBB50\uB0D0!"
+      leftSprite: {fileID: 0}
+      rightSprite: {fileID: 5365032424008789997, guid: 1795cd1111145234597a7e370c62cead, type: 3}
+      backgroundOverride: {fileID: 8620740956130020899, guid: 3a6178873bd5e4d4696f4c80d4b03f2d, type: 3}
+    - characterName: "\uC548\uCE58\uC6B0"
+      dialogueText: "\uD5C9 \uC5B4\uB5BB\uD558\uC9C0"
+      leftSprite: {fileID: -6903144908483564098, guid: 3e24d2af40d5ea1479cdab2c614f9449, type: 3}
+      rightSprite: {fileID: 0}
+      backgroundOverride: {fileID: 8620740956130020899, guid: 3a6178873bd5e4d4696f4c80d4b03f2d, type: 3}
+    requirements: []
+    choices:
+    - label: "\uD07F \uC8FD\uC5B4\uB77C!"
+      type: 1
+      effects:
+      - type: 2
+        amount: 1
+        targetId: 
+        statType: -1
+      shouldRedrawPath: 1
+      ownRequirements: []
+    - label: "\uB3C4\uB9DD\uAC00\uAE30"
+      type: 2
+      effects:
+      - type: 1
+        amount: -30
+        targetId: 
+        statType: -1
+      shouldRedrawPath: 1
+      ownRequirements: []
+    forceEffects: []
+    forceFailMessage: 
+    envObjectRange: 2
+    interactionRange: 1.5

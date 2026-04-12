@@ -13,7 +13,6 @@ public class ExplorationManager : MonoBehaviour
     [Header("Settings")]
     public float moveSpeed = 5f;
     public float timeScale = 1.0f; 
-    public KeyCode interactKey = KeyCode.E; // [RESTORE] UI 표시용으로 복구
 
     [Header("Character Setup")]
     public Fighter fighterPrefab; 
@@ -35,7 +34,6 @@ public class ExplorationManager : MonoBehaviour
     private InputAction clickAction;
     private InputAction rightClickAction;
     private InputAction pointAction;
-    private InputAction interactAction;
 #endif
 
     private NavMeshAgent agent; // [ADD] 물리 기반 이동을 위한 에이전트
@@ -43,6 +41,10 @@ public class ExplorationManager : MonoBehaviour
     private bool isDrawing = false;
     private Vector3 lastAddedPoint;
     private bool _isPointerOverUI = false; // [FIX] Input System 콜백에서 IsPointerOverGameObject 사용 불가 대응
+
+    // [ADD] 이동형 적 관리
+    private List<ExplorationEnemyController> activeEnemies = new List<ExplorationEnemyController>();
+    private List<ExplorationEnemyMarker> enemyMarkers = new List<ExplorationEnemyMarker>();
 
     // [ADD] 씬 마커 기반 위치 오버라이드 (ScriptableObject 원본 보호)
     private Dictionary<string, Vector3> nodePositionOverrides = new Dictionary<string, Vector3>();
@@ -72,7 +74,6 @@ public class ExplorationManager : MonoBehaviour
         clickAction = playerInput.actions["Attack"]; // Player Map의 Attack (Left Click)
         rightClickAction = playerInput.actions["RightClick"]; // UI Map의 RightClick
         pointAction = playerInput.actions["Point"]; // UI Map의 Point (Mouse Position)
-        interactAction = playerInput.actions["Interact"]; // Player Map의 Interact (E)
 
         // 클릭 이벤트 구독
         clickAction.started += OnClickStarted;
@@ -80,9 +81,6 @@ public class ExplorationManager : MonoBehaviour
         
         // 우클릭(Undo) 이벤트 구독
         rightClickAction.performed += OnRightClickPerformed;
-
-        // 상호작용 이벤트 구독
-        interactAction.performed += OnInteractPerformed;
     }
 
     private void OnDisable()
@@ -93,7 +91,6 @@ public class ExplorationManager : MonoBehaviour
             clickAction.canceled -= OnClickCanceled;
         }
         if (rightClickAction != null) rightClickAction.performed -= OnRightClickPerformed;
-        if (interactAction != null) interactAction.performed -= OnInteractPerformed;
     }
 
     private void OnClickStarted(InputAction.CallbackContext context)
@@ -111,16 +108,8 @@ public class ExplorationManager : MonoBehaviour
         if (currentState.phase == ExplorationPhase.Planning) UndoLastSegment();
     }
 
-    private void OnInteractPerformed(InputAction.CallbackContext context)
-    {
-        if (currentState.phase == ExplorationPhase.Moving && nearInteractionNode != null)
-        {
-            TriggerEvent(nearInteractionNode);
-        }
-    }
 #endif
 
-    private DialogueNodeData nearInteractionNode;
     public void TriggerEvent(DialogueNodeData node)
     {
         if (node.eventType == ExplorationEventType.None) return;
@@ -143,9 +132,39 @@ public class ExplorationManager : MonoBehaviour
             };
         }
 
-        GameEvents.RaiseExplorationVNStarted(steps, () => {
+        GameEvents.RaiseExplorationVNStarted(steps, node, (ExplorationChoiceType choiceType) => {
+            // [MOD] 선택지 타입에 따른 노드 완료 처리
+            // Escape가 아닌 선택(Combat, Interactive 등): 무조건 노드 삭제
+            // Escape 또는 선택지 없음(None): isOneTime일 때만 삭제
+            if (choiceType != ExplorationChoiceType.Escape)
+            {
+                currentState.triggeredNodeIds.Add(node.nodeId);
+                RemoveEnemy(node.nodeId); // [ADD] 처리된 적 오브젝트 제거
+            }
+            else if (node.isOneTime)
+            {
+                currentState.triggeredNodeIds.Add(node.nodeId);
+                RemoveEnemy(node.nodeId);
+            }
+            else
+            {
+                // [ADD] Escape 시 적의 감지 플래그 리셋 (다시 순찰 시작)
+                foreach (var enemy in activeEnemies)
+                {
+                    if (enemy != null && enemy.linkedNodeId == node.nodeId)
+                        enemy.ResetDetection();
+                }
+            }
+
+            // 탈출(Exit)의 경우 VN 종료 후 결과창 진입
+            if (node.eventType == ExplorationEventType.Exit)
+            {
+                OnExplorationSucceeded();
+                return;
+            }
+
             // VN 종료 혹은 수집 완료 후 선택지 처리 로직
-            if (node.eventType == ExplorationEventType.EnvObject && node.choices.Count == 0)
+            if (node.eventType == ExplorationEventType.EnvObject && (node.choices == null || node.choices.Count == 0))
             {
                 if (!currentState.foundEnvObjectIds.Contains(node.nodeId))
                 {
@@ -159,14 +178,13 @@ public class ExplorationManager : MonoBehaviour
 
     void Update()
     {
-        // [FIX] UI 호버 상태를 매 프레임 캐싱 (Input System 콜백에서 직접 호출 불가)
-        _isPointerOverUI = UnityEngine.EventSystems.EventSystem.current != null &&
-                           UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject();
-
-        // New Input System: Drawing Update (지속적인 드래그 처리)
-        if (currentState.phase == ExplorationPhase.Planning && isDrawing)
+        // [OPTIMIZE] Planning 페이즈에서만 UI 호버 체크 수행
+        if (currentState.phase == ExplorationPhase.Planning)
         {
-            UpdateDrawing();
+            _isPointerOverUI = UnityEngine.EventSystems.EventSystem.current != null &&
+                               UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject();
+
+            if (isDrawing) UpdateDrawing();
         }
     }
 
@@ -300,7 +318,7 @@ public class ExplorationManager : MonoBehaviour
             if (NavMesh.SamplePosition(hit.point, out navHit, 2.0f, NavMesh.AllAreas))
             {
                 position = navHit.position;
-                position.y += 0.05f; // NavMesh 표면보다 살짝 위로 (선이 보이게)
+                // position.y += 0.15f; // [REMOVE] 이동 데이터는 바닥에 붙여야 덝그덕거림이 사라짐
                 return true;
             }
             // NavMesh 범위 밖이면 그리기 거부
@@ -326,11 +344,8 @@ public class ExplorationManager : MonoBehaviour
 
         foreach (var segment in currentState.pathSegments)
         {
-            foreach (var point in segment)
-            {
-                totalDist += Vector3.Distance(current, point);
-                current = point;
-            }
+            totalDist += CalculatePathTime(segment, current) * moveSpeed;
+            if (segment.Count > 0) current = segment[segment.Count - 1];
         }
 
         // 공식: 시간 = 거리 / 속도
@@ -346,7 +361,7 @@ public class ExplorationManager : MonoBehaviour
             foreach (var corner in path.corners)
             {
                 Vector3 p = corner;
-                p.y += 0.05f; // [FIX] 최단 경로 점들도 바닥 위로 띄움
+                p.y += 0.15f; // [FIX] 최단 경로 점들도 높게 띄움
                 points.Add(p);
             }
         }
@@ -369,7 +384,16 @@ public class ExplorationManager : MonoBehaviour
     public void StartExploration(ExplorationStageData data)
     {
         stageData = data;
-        ExplorationSceneData.SetupExploration(GameManager.Instance.State);
+        
+        // [FIX] GameManager가 없을 때(씬 단독 테스트 등) 발생하던 NullReferenceException 방어
+        if (GameManager.Instance != null)
+        {
+            ExplorationSceneData.SetupExploration(GameManager.Instance.State);
+        }
+        else
+        {
+            Debug.LogWarning("[Exploration] GameManager not found. Running in standalone mode (Data persistence disabled).");
+        }
 
         // [ADD] 씬 마커 스캔 — 기획자가 배치한 오브젝트 위치를 자동으로 읽어옴
         ScanSceneMarkers();
@@ -380,9 +404,10 @@ public class ExplorationManager : MonoBehaviour
         
         SyncVisualPosition();
         
-        // 1. 캐릭터 스폰 로직 추가
+        // [FIX] 캐릭터 스폰 및 입력 맵 명시적 활성화 (UI 맵에 잠겨있는 경우 대비)
         SpawnFighter(spawnPos);
-        
+        if (playerInput != null) playerInput.SwitchCurrentActionMap("Player");
+
         GameEvents.RaiseExplorationStarted(data, currentState); // [ADD] UI 시작 이벤트
         SetPhase(ExplorationPhase.Planning);
     }
@@ -400,13 +425,24 @@ public class ExplorationManager : MonoBehaviour
         CurrentFighter = Instantiate(fighterPrefab, position, Quaternion.identity);
         playerTransform = CurrentFighter.transform;
 
-        // NavMeshAgent 설정 확인 및 강제 활성화
-        var agent = CurrentFighter.GetComponent<NavMeshAgent>();
+        // [FIX] 전역 변수 agent에 할당 (지역 변수 var 삭제)
+        agent = CurrentFighter.GetComponent<NavMeshAgent>();
         if (agent != null)
         {
+            agent.Warp(position); 
             agent.speed = moveSpeed;
-            agent.acceleration = 20f;
+            agent.acceleration = 60f;      // [FIX] 가속도를 대폭 높여 덝그덕거림 방지
+            agent.angularSpeed = 720f;     // [FIX] 회전을 시원시원하게 변경
             agent.stoppingDistance = 0.1f;
+            agent.obstacleAvoidanceType = ObstacleAvoidanceType.LowQualityObstacleAvoidance; // [FIX] 명칭 수정
+        }
+
+        // [ADD] 카메라 컨트롤러 연결: 소환된 캐릭터를 추적 대상으로 지정
+        var camCtrl = Object.FindAnyObjectByType<ExplorationCameraController>();
+        if (camCtrl != null)
+        {
+            camCtrl.SetTarget(playerTransform);
+            camCtrl.WarpToTarget(); // 소환된 위치로 카메라 즉시 이동
         }
     }
 
@@ -436,13 +472,19 @@ public class ExplorationManager : MonoBehaviour
             Debug.Log($"[MarkerScan] 노드 마커 감지: {marker.nodeId} → {marker.transform.position}");
         }
         Debug.Log($"[MarkerScan] 총 {nodePositionOverrides.Count}개 노드 마커, 시작 마커 {(startMarker != null ? "있음" : "없음 (fallback 사용)")}");
+
+        // [ADD] 적 마커 스캔
+        enemyMarkers.Clear();
+        var scannedEnemyMarkers = Object.FindObjectsByType<ExplorationEnemyMarker>(FindObjectsInactive.Exclude);
+        enemyMarkers.AddRange(scannedEnemyMarkers);
+        Debug.Log($"[MarkerScan] 적 마커 {enemyMarkers.Count}개 감지");
     }
 
     /// <summary>
     /// 노드의 실제 사용 위치를 반환합니다.
     /// 씬 마커가 있으면 마커 위치, 없으면 ScriptableObject의 worldPosition을 사용합니다.
     /// </summary>
-    private Vector3 GetNodePosition(DialogueNodeData node)
+    public Vector3 GetNodePosition(DialogueNodeData node)
     {
         if (nodePositionOverrides.TryGetValue(node.nodeId, out var pos))
             return pos;
@@ -452,8 +494,15 @@ public class ExplorationManager : MonoBehaviour
     private void SetPhase(ExplorationPhase nextPhase)
     {
         currentState.phase = nextPhase;
-        GameEvents.RaiseExplorationPhaseChanged(nextPhase); // [ADD] 페이즈 변경 이벤트
+        GameEvents.RaiseExplorationPhaseChanged(nextPhase);
         Debug.Log($"Exploration Phase Changed: {nextPhase}");
+
+        // [ADD] 이동형 적 페이즈 연동
+        bool shouldPause = (nextPhase != ExplorationPhase.Moving);
+        foreach (var enemy in activeEnemies)
+        {
+            if (enemy != null) enemy.SetPaused(shouldPause);
+        }
     }
 
     // ====================================================
@@ -493,8 +542,134 @@ public class ExplorationManager : MonoBehaviour
         currentState.pathSegments.Clear();
 
         SetPhase(ExplorationPhase.Moving);
+        SpawnEnemies(); // [ADD] 이동 시작 시 적 스폰
         if (movementCoroutine != null) StopCoroutine(movementCoroutine);
         movementCoroutine = StartCoroutine(MovementRoutine());
+    }
+
+    // ====================================================
+    //  이동형 적 관리
+    // ====================================================
+
+    /// <summary>
+    /// 씨에 배치된 EnemyMarker를 기반으로 적 오브젝트를 스폰합니다.
+    /// </summary>
+    private void SpawnEnemies()
+    {
+        // 기존 적 제거
+        foreach (var enemy in activeEnemies)
+        {
+            if (enemy != null) Destroy(enemy.gameObject);
+        }
+        activeEnemies.Clear();
+
+        foreach (var marker in enemyMarkers)
+        {
+            if (marker == null) continue;
+            // 이미 처리된 적은 스폰하지 않음
+            if (currentState.triggeredNodeIds.Contains(marker.linkedNodeId)) continue;
+
+            // 새 게임오브젝트 생성 (NavMeshAgent 필요)
+            var enemyGO = new GameObject($"Enemy_{marker.linkedNodeId}");
+            enemyGO.transform.position = marker.transform.position;
+
+            // [ADD] 임시 시각 표시용 빨간 큐브 (나중에 적 프리팹으로 교체)
+            var visual = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            visual.transform.SetParent(enemyGO.transform);
+            visual.transform.localPosition = Vector3.up * 0.5f;
+            visual.transform.localScale = Vector3.one * 0.8f;
+            var renderer = visual.GetComponent<Renderer>();
+            if (renderer != null)
+            {
+                renderer.material = new Material(Shader.Find("Standard"));
+                renderer.material.color = Color.red;
+            }
+            // 큐브의 콜라이더 제거 (NavMeshAgent 이동 방해 방지)
+            var col = visual.GetComponent<Collider>();
+            if (col != null) Destroy(col);
+
+            // NavMeshAgent 추가
+            var navAgent = enemyGO.AddComponent<NavMeshAgent>();
+            navAgent.height = 1.8f;
+            navAgent.radius = 0.3f;
+
+            // EnemyController 추가 및 초기화
+            var controller = enemyGO.AddComponent<ExplorationEnemyController>();
+            controller.linkedNodeId = marker.linkedNodeId;
+
+            // 웨이포인트 좌표 추출
+            Vector3[] wpPositions;
+            if (marker.waypoints != null && marker.waypoints.Length > 0)
+            {
+                var posList = new List<Vector3>();
+                foreach (var wp in marker.waypoints)
+                {
+                    if (wp != null) posList.Add(wp.position);
+                }
+                wpPositions = posList.Count > 0 ? posList.ToArray() : new Vector3[] { marker.transform.position };
+            }
+            else
+            {
+                wpPositions = new Vector3[] { marker.transform.position };
+            }
+
+            controller.Initialize(wpPositions, marker.patrolSpeed, marker.detectRange, marker.waitTimeAtPoint);
+            controller.StartPatrol();
+            activeEnemies.Add(controller);
+
+            Debug.Log($"[Enemy] 스폰: {marker.linkedNodeId} at {marker.transform.position}");
+        }
+    }
+
+    /// <summary>
+    /// 이동형 적이 플레이어를 감지했을 때 호출됩니다.
+    /// </summary>
+    public void OnEnemyDetectedPlayer(string nodeId)
+    {
+        // StageData에서 해당 노드 찾기
+        DialogueNodeData targetNode = null;
+        foreach (var node in stageData.nodes)
+        {
+            if (node.nodeId == nodeId)
+            {
+                targetNode = node;
+                break;
+            }
+        }
+
+        if (targetNode != null)
+        {
+            // 이동 중단 + 이벤트 발동
+            if (movementCoroutine != null)
+            {
+                StopCoroutine(movementCoroutine);
+                movementCoroutine = null;
+            }
+            if (agent != null && agent.isOnNavMesh) agent.isStopped = true;
+
+            Debug.Log($"[Enemy] 플레이어 감지! {nodeId}");
+            TriggerEvent(targetNode);
+        }
+        else
+        {
+            Debug.LogWarning($"[Enemy] StageData에 nodeId '{nodeId}'가 없습니다.");
+        }
+    }
+
+    /// <summary>
+    /// Combat으로 처리된 적을 맵에서 제거합니다.
+    /// </summary>
+    public void RemoveEnemy(string nodeId)
+    {
+        for (int i = activeEnemies.Count - 1; i >= 0; i--)
+        {
+            if (activeEnemies[i] != null && activeEnemies[i].linkedNodeId == nodeId)
+            {
+                Destroy(activeEnemies[i].gameObject);
+                activeEnemies.RemoveAt(i);
+                Debug.Log($"[Enemy] 제거: {nodeId}");
+            }
+        }
     }
 
     // ====================================================
@@ -592,8 +767,8 @@ public class ExplorationManager : MonoBehaviour
 
         foreach (var node in stageData.nodes)
         {
-            // 1. 이미 처리된 1회용 노드는 스킵 (환경 오브젝트 수집 완료 or 이벤트 발동 완료)
-            if (node.isOneTime && currentState.triggeredNodeIds.Contains(node.nodeId)) continue;
+            // 1. 이미 처리된 노드는 스킵 (선택지 결과에 따라 기록됨)
+            if (currentState.triggeredNodeIds.Contains(node.nodeId)) continue;
 
             Vector3 nodePos = GetNodePosition(node);
             float distSqr = (currentState.currentPosition - nodePos).sqrMagnitude;
@@ -620,8 +795,7 @@ public class ExplorationManager : MonoBehaviour
                     continue; 
                 }
 
-                // 3. 발동! (1회용이면 기록)
-                if (node.isOneTime) currentState.triggeredNodeIds.Add(node.nodeId);
+                // 3. 발동! (노드 완료 처리는 VN 종료 콜백에서 선택지 타입에 따라 수행)
                 lastTriggeredNodeId = node.nodeId;
                 
                 if (inEnvObject)
@@ -635,11 +809,19 @@ public class ExplorationManager : MonoBehaviour
                     }
                     else
                     {
-                        // VN 데이터가 없으면 기존처럼 자동 수집
+                        // VN 데이터가 없으면 기존처럼 자동 수집 + 즉시 완료 처리
+                        currentState.triggeredNodeIds.Add(node.nodeId); // [FIX] 반복 수집 방지
                         currentState.foundEnvObjectIds.Add(node.nodeId);
                         GameEvents.RaiseExplorationEnvObjectFound(node.nodeName ?? node.nodeId);
                         Debug.Log($"[Exploration] 환경 오브젝트 자동 수집: {node.nodeId}");
                     }
+                }
+                else if (node.eventType == ExplorationEventType.Exit)
+                {
+                    // [ADD] 탈출 시 전용 대사가 있다면 VN 호출, 없다면 즉시 성공 처리
+                    Debug.Log($"[Exploration] 탈출 지점 도달: {node.nodeId}");
+                    TriggerEvent(node);
+                    return;
                 }
                 else
                 {
@@ -660,6 +842,7 @@ public class ExplorationManager : MonoBehaviour
     private void ConsumeTime(float amount)
     {
         currentState.remainingTime = Mathf.Max(0, currentState.remainingTime - amount);
+        GameEvents.RaiseExplorationUpdated(currentState); // [FIX] HUD에 시간 갱신 알림
     }
 
     // ====================================================
@@ -687,7 +870,12 @@ public class ExplorationManager : MonoBehaviour
             }
             else
             {
+                // [FIX] 기존 경로 유지: 페이지만 Moving으로 변경하면 MovementRoutine이 이어서 진행됨
                 SetPhase(ExplorationPhase.Moving);
+                if (movementCoroutine == null && currentState.plannedPath.Count > 0)
+                {
+                    movementCoroutine = StartCoroutine(MovementRoutine());
+                }
             }
         }
     }
@@ -718,6 +906,7 @@ public class ExplorationManager : MonoBehaviour
         }
 
         GameEvents.RaiseActionResult($"탐사 성공! {currentState.collectedGold}G 획득");
+        state.lastExplorationStatus = "Success";
         ExplorationSceneData.CompleteExploration();
         SaveSystem.Save(state);
     }
@@ -730,7 +919,14 @@ public class ExplorationManager : MonoBehaviour
         
         if (GameManager.Instance != null)
         {
-            SaveSystem.Save(GameManager.Instance.State);
+            // [FIX] 실패 시 데이터는 초기화하되, '실패했다는 기록'은 남김
+            ExplorationSceneData.RestoreBackup();
+            
+            var state = GameManager.Instance.State;
+            state.lastExplorationStatus = "Failed";
+            state.nightCompleted = true; // 밤 활동 종료 처리
+            
+            SaveSystem.Save(state);
         }
     }
 

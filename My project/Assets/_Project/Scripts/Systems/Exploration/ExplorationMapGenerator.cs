@@ -50,9 +50,11 @@ public class ExplorationMapGenerator : MonoBehaviour
 
         // 4. 오브젝트 생성 및 컴포넌트 설정
         GameObject mapObj = new GameObject(mapGameObjectName);
-        mapObj.transform.SetParent(this.transform);
-        mapObj.transform.localPosition = Vector3.zero;
-        mapObj.transform.localRotation = Quaternion.identity;
+        
+        // 월드 좌표 기반으로 추출된 데이터이므로, 부모를 설정하더라도 월드 위치가 변하지 않아야 함
+        mapObj.transform.position = Vector3.zero;
+        mapObj.transform.rotation = Quaternion.identity;
+        mapObj.transform.SetParent(this.transform, true); // World Position 보존
 
         MeshFilter mf = mapObj.AddComponent<MeshFilter>();
         mf.sharedMesh = mesh;
